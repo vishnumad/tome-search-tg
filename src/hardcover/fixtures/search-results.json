@@ -1,0 +1,241 @@
+{
+  "facet_counts": [],
+  "found": 5,
+  "hits": [
+    {
+      "document": {
+        "id": "369692",
+        "title": "Mistborn: The Final Empire",
+        "subtitle": "The Final Empire",
+        "slug": "mistborn",
+        "description": "For a thousand years the ash fell and no flowers bloomed. For a thousand years the Skaa slaved in misery and lived in fear. For a thousand years the Lord Ruler, the \"Sliver of Infinity,\" reigned with absolute power and ultimate terror, divinely invincible. Then, when hope was so long lost that not even its memory remained, a terribly scarred, heart-broken half-Skaa rediscovered it in the depths of the Lord Ruler's most hellish prison. Kelsier \"snapped\" and found in himself the powers of a Mistborn. A brilliant thief and natural leader, he turned his talents to the ultimate caper, with the Lord Ruler himself as the mark.\n\nKelsier recruited the underworld's elite, the smartest and most trustworthy allomancers, each of whom shares one of his many powers, and all of whom relish a high-stakes challenge. Then Kelsier reveals his ultimate dream, not just the greatest heist in history, but the downfall of the divine despot.\n\nBut even with the best criminal crew ever assembled, Kel's plan looks more like the ultimate long shot, until luck brings a ragged girl named Vin into his life. Like him, she's a half-Skaa orphan, but she's lived a much harsher life. Vin has learned to expect betrayal ",
+        "rating": 4.461995712336776,
+        "ratings_count": 5131,
+        "release_year": 2006,
+        "image": {
+          "url": "https://assets.hardcover.app/edition/5195452/8c6af4492dd7ef9eed7c1e40abefc79f23df2d2f.jpeg",
+          "color": "#935b67"
+        },
+        "author_names": [
+          "Brandon Sanderson"
+        ],
+        "contributions": [
+          {
+            "contribution": "Author",
+            "author": {
+              "id": 204214,
+              "name": "Brandon Sanderson",
+              "slug": "brandon-sanderson"
+            }
+          }
+        ],
+        "featured_series": {
+          "collection": false,
+          "details": "1",
+          "featured": true,
+          "id": 16593,
+          "position": 1,
+          "series": {
+            "books_count": 14,
+            "id": 10001,
+            "name": "The Mistborn Saga: The Original Trilogy",
+            "primary_books_count": 3,
+            "slug": "the-mistborn-saga-the-original-trilogy"
+          },
+          "unreleased": false
+        },
+        "genres": [
+          "Fantasy",
+          "Adventure",
+          "Young Adult",
+          "Epic Fantasy",
+          "Magic",
+          "Science Fiction & Fantasy",
+          "High Fantasy",
+          "Dystopian",
+          "science fantasy",
+          "Science Fiction"
+        ]
+      },
+      "text_match": 578730123365711900
+    },
+    {
+      "document": {
+        "id": "439183",
+        "title": "Watchmen #1: At Midnight, All the Agents...",
+        "subtitle": "At Midnight, All The Agents…",
+        "slug": "watchmen-1",
+        "description": "Featuring the first appearance of Rorschach, Ozymandias, Dr. Manhattan, Silk Spectre, Nite Owl, and the Comedian! When the Comedian dies, a series of events are set into motion that bring the world ever closer to a deadly threat no one saw coming.",
+        "rating": 4.604651162790698,
+        "ratings_count": 172,
+        "release_year": 1986,
+        "image": {
+          "url": "https://assets.hardcover.app/editions/30404478/4597534862345742-91HEokYy8L._SL1500_.jpg",
+          "color": "#a81221"
+        },
+        "author_names": [
+          "Alan Moore",
+          "Dave Gibbons",
+          "Jean-Patrick Manchette"
+        ],
+        "contributions": [
+          {
+            "contribution": "Author",
+            "author": {
+              "id": 192692,
+              "name": "Alan Moore",
+              "slug": "alan-moore"
+            }
+          },
+          {
+            "contribution": "Illustrator",
+            "author": {
+              "id": 252222,
+              "name": "Dave Gibbons",
+              "slug": "dave-gibbons"
+            }
+          },
+          {
+            "contribution": "traduction",
+            "author": {
+              "id": 65739,
+              "name": "Jean-Patrick Manchette",
+              "slug": "jean-patrick-manchette"
+            }
+          }
+        ],
+        "featured_series": {
+          "collection": false,
+          "details": "1",
+          "featured": true,
+          "id": 5534,
+          "position": 1,
+          "series": {
+            "books_count": 21,
+            "id": 5453,
+            "name": "Watchmen",
+            "primary_books_count": 12,
+            "slug": "watchmen"
+          },
+          "unreleased": false
+        },
+        "genres": [
+          "Classics",
+          "Fantasy",
+          "Science Fiction",
+          "Comics",
+          "Dystopian"
+        ]
+      },
+      "text_match": 578730123365711900
+    },
+    {
+      "document": {
+        "id": "2459845",
+        "title": "The Hobbit, or There and Back Again",
+        "subtitle": "Heartache, Heritage, and Happiness",
+        "slug": "the-hobbit",
+        "description": "<i>\"In a hole in the ground there lived a hobbit.\" </i>So begins one of the most beloved and delightful tales in the English language. Set in the imaginary world of Middle-earth, at once a classic myth and a modern fairy tale, The Hobbit is one of literature's most enduring and well-loved high fantasy novels.\n\nBilbo Baggins is a hobbit who enjoys a comfortable, unambitious life, rarely traveling any farther than his pantry or cellar. But his contentment is disturbed when the wizard Gandalf and a company of dwarves arrive on his doorstep one day to whisk him away on an adventure. They have launched a plot to raid the treasure hoard guarded by Smaug the Magnificent, a large and very dangerous dragon. \n\nBilbo reluctantly joins their epic quest, unaware that on his journey to the Lonely Mountain he will encounter both a magic ring and a frightening creature known as Gollum.",
+        "rating": 4.31775633640553,
+        "ratings_count": 6944,
+        "release_year": 1937,
+        "image": {
+          "url": "https://assets.hardcover.app/edition/17456445/d34448a9-bf3f-441d-93f2-1cd32dd3867c.jpg",
+          "color": "#c58f27"
+        },
+        "author_names": [
+          "J.R.R. Tolkien"
+        ],
+        "contributions": [
+          {
+            "contribution": "Author",
+            "author": {
+              "id": 132049,
+              "name": "J.R.R. Tolkien",
+              "slug": "jrr-tolkien"
+            }
+          }
+        ],
+        "featured_series": {
+          "collection": false,
+          "details": "1",
+          "featured": true,
+          "id": 739164,
+          "position": 1,
+          "series": {
+            "books_count": 18,
+            "id": 127396,
+            "name": "Middle Earth",
+            "primary_books_count": 4,
+            "slug": "middle-earth"
+          },
+          "unreleased": false
+        },
+        "genres": [
+          "Fantasy",
+          "Classics",
+          "Adventure",
+          "Young Adult",
+          "Juvenile Fiction",
+          "Literature & Fiction",
+          "Literary Fiction",
+          "Epic",
+          "Media Tie-In",
+          "Children's stories"
+        ]
+      },
+      "text_match": 1157451471441625000
+    },
+    {
+      "document": {
+        "id": "999001",
+        "title": "Obscure & <Unrated> Book",
+        "subtitle": null,
+        "slug": "obscure-unrated-book",
+        "description": null,
+        "rating": 0,
+        "ratings_count": 0,
+        "release_year": null,
+        "image": null,
+        "author_names": [
+          "Solo Writer",
+          "Some Narrator"
+        ],
+        "contributions": [
+          {
+            "contribution": null,
+            "author": {
+              "id": 1,
+              "name": "Solo Writer"
+            }
+          },
+          {
+            "contribution": "Narrator",
+            "author": {
+              "id": 2,
+              "name": "Some Narrator"
+            }
+          },
+          {
+            "contribution": "Author"
+          }
+        ],
+        "featured_series": null,
+        "genres": [
+          "Horror",
+          "horror",
+          " Mystery ",
+          ""
+        ]
+      },
+      "text_match": 1
+    },
+    {
+      "document": {
+        "id": "999002",
+        "slug": "missing-title"
+      },
+      "text_match": 0
+    }
+  ]
+}
