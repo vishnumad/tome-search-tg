@@ -1,0 +1,9 @@
+services:
+  bot:
+    build: .
+    image: tome-search-tg
+    env_file: .env
+    restart: unless-stopped
+    init: true
+    logging:
+      driver: local

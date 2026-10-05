@@ -26,6 +26,14 @@ In @BotFather, enable inline mode (`/setinline`) and guest mode ("Guest Mode" in
 bot settings). To restrict who can use the bot, use Telegram's built-in bot access settings. On startup
 the bot warns if inline or guest mode is disabled.
 
+## Docker
+
+```sh
+docker compose up -d --build
+```
+
+Compose reads secrets from `.env` at runtime
+
 ## Scripts
 
 | Command | Description |

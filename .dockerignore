@@ -1,0 +1,7 @@
+.env
+.git
+node_modules
+scripts
+schema.graphql
+src/**/*.test.ts
+src/hardcover/fixtures
