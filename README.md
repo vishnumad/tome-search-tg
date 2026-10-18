@@ -1,7 +1,6 @@
 # TomeSearchBot
 
-Telegram bot that searches [Hardcover](https://hardcover.app) for books and posts the title, author,
-series, rating, page count and description.
+Telegram bot that searches [Hardcover](https://hardcover.app) for books and posts book info.
 
 - `/q <search term>` posts the top match
 - Inline: type `@TomeSearchBot <search term>` in any chat and pick one of the results

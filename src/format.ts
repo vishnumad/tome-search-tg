@@ -32,7 +32,6 @@ export const formatAuthors = (authors: string[]) => authors.join(", ");
 
 const compactNumber = new Intl.NumberFormat("en-US", { notation: "compact" });
 
-/** "225 rtgs", "5.1k rtgs". Kept short so the stats line fits on a phone. */
 export const formatRatingsCount = (count: number) =>
   `${compactNumber.format(count).toLowerCase()} rtg${count === 1 ? "" : "s"}`;
 
