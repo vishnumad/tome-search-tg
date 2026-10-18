@@ -12,6 +12,7 @@
         "rating": 4.461995712336776,
         "ratings_count": 5131,
         "release_year": 2006,
+        "pages": 541,
         "image": {
           "url": "https://assets.hardcover.app/edition/5195452/8c6af4492dd7ef9eed7c1e40abefc79f23df2d2f.jpeg",
           "color": "#935b67"
@@ -196,6 +197,7 @@
         "rating": 0,
         "ratings_count": 0,
         "release_year": null,
+        "pages": null,
         "image": null,
         "author_names": [
           "Solo Writer",

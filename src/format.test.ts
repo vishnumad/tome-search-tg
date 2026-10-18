@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { bookSummaryLine, formatBookHtml, formatSeries, truncate } from "./format.ts";
+import { bookSummaryLine, formatBookHtml, formatRatingsCount, formatSeries, truncate } from "./format.ts";
 import type { Book } from "./hardcover/types.ts";
 
 const book: Book = {
@@ -13,6 +13,7 @@ const book: Book = {
   rating: 4.461995,
   ratingsCount: 5131,
   releaseYear: 2006,
+  pages: 541,
   genres: ["Fantasy", "Epic Fantasy", "Magic", "Adventure", "Young Adult", "Dystopian"],
 };
 
@@ -45,6 +46,17 @@ describe("formatSeries", () => {
   });
 });
 
+describe("formatRatingsCount", () => {
+  it("abbreviates counts of 1,000 and up", () => {
+    assert.equal(formatRatingsCount(1), "1 rtg");
+    assert.equal(formatRatingsCount(225), "225 rtgs");
+    assert.equal(formatRatingsCount(1000), "1k rtgs");
+    assert.equal(formatRatingsCount(5131), "5.1k rtgs");
+    assert.equal(formatRatingsCount(48_213), "48k rtgs");
+    assert.equal(formatRatingsCount(1_250_000), "1.3m rtgs");
+  });
+});
+
 describe("formatBookHtml", () => {
   it("renders all fields", () => {
     assert.equal(
@@ -53,7 +65,7 @@ describe("formatBookHtml", () => {
         '<b><a href="https://hardcover.app/books/mistborn">Mistborn: The Final Empire</a></b>',
         "by Brandon Sanderson",
         "The Mistborn Saga #1 of 3",
-        "4.46⭐ (5,131 ratings) · 2006",
+        "4.46⭐ (5.1k rtgs) · 2006 · 541p",
         "<blockquote expandable>For a thousand years the ash fell.",
         "",
         "Fantasy · Epic Fantasy · Magic · Adventure · Young Adult</blockquote>",
@@ -77,6 +89,7 @@ describe("formatBookHtml", () => {
       rating: undefined,
       ratingsCount: 0,
       releaseYear: undefined,
+      pages: undefined,
       genres: [],
     });
     assert.equal(html, '<b><a href="https://hardcover.app/books/mistborn">Mistborn: The Final Empire</a></b>');

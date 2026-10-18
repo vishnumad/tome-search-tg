@@ -17,6 +17,7 @@ const documentSchema = z.object({
   rating: optionalNumber,
   ratings_count: optionalNumber,
   release_year: optionalNumber,
+  pages: optionalNumber,
   image: z.object({ url: optionalString }).nullish(),
   author_names: z.array(z.string()).nullish(),
   genres: z.array(z.string()).nullish(),
@@ -113,6 +114,7 @@ function toBook(doc: Document): Book {
     rating: doc.rating || undefined,
     ratingsCount: doc.ratings_count ?? 0,
     releaseYear: doc.release_year ?? undefined,
+    pages: doc.pages || undefined,
     coverUrl: nonEmpty(doc.image?.url),
     genres: parseGenres(doc),
   };
