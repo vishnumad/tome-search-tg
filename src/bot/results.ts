@@ -9,10 +9,10 @@ export const usageText = (botUsername: string) =>
   `• Inline: type @${botUsername} <search term> in any chat and pick a result\n` +
   `• Guest mode: mention @${botUsername} <search term> in a chat I'm not a member of`;
 
-/** Shows a small preview of the book page above the message, or none when there's no cover. */
+/** Shows the cover image above the message, or no preview when there's no cover. */
 const bookLinkPreview = (book: Book): LinkPreviewOptions =>
   book.coverUrl
-    ? { url: book.url, prefer_small_media: true, show_above_text: true }
+    ? { url: book.coverUrl, prefer_large_media: true, show_above_text: true }
     : { is_disabled: true };
 
 export const bookMessage = (book: Book) =>
