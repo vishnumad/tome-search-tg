@@ -31,6 +31,7 @@ describe("parseSearchResults", () => {
     assert.ok(book.rating && book.rating > 4);
     assert.ok(book.ratingsCount > 0);
     assert.equal(book.releaseYear, 2006);
+    assert.equal(book.pages, 541);
     assert.match(book.coverUrl ?? "", /^https:\/\/assets\.hardcover\.app\//);
   });
 
@@ -67,6 +68,7 @@ describe("parseSearchResults", () => {
     assert.equal(book.rating, undefined);
     assert.equal(book.ratingsCount, 0);
     assert.equal(book.releaseYear, undefined);
+    assert.equal(book.pages, undefined);
     assert.equal(book.coverUrl, undefined);
   });
 

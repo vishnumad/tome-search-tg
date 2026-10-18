@@ -17,6 +17,7 @@ export interface Book {
   rating?: number;
   ratingsCount: number;
   releaseYear?: number;
+  pages?: number;
   coverUrl?: string;
   /** Most relevant first. */
   genres: string[];

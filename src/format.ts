@@ -30,8 +30,11 @@ export const formatRating = (rating: number) => `${rating.toFixed(2)}⭐`;
 
 export const formatAuthors = (authors: string[]) => authors.join(", ");
 
-const pluralize = (count: number, word: string) =>
-  `${count.toLocaleString("en-US")} ${word}${count === 1 ? "" : "s"}`;
+const compactNumber = new Intl.NumberFormat("en-US", { notation: "compact" });
+
+/** "225 rtgs", "5.1k rtgs". Kept short so the stats line fits on a phone. */
+export const formatRatingsCount = (count: number) =>
+  `${compactNumber.format(count).toLowerCase()} rtg${count === 1 ? "" : "s"}`;
 
 /** One-line summary, used as the inline result description. */
 export function bookSummaryLine(book: Book): string {
@@ -54,10 +57,11 @@ export function formatBookHtml(
 
   const stats: string[] = [];
   if (book.rating) {
-    const count = book.ratingsCount ? ` (${pluralize(book.ratingsCount, "rating")})` : "";
+    const count = book.ratingsCount ? ` (${formatRatingsCount(book.ratingsCount)})` : "";
     stats.push(`${formatRating(book.rating)}${count}`);
   }
   if (book.releaseYear) stats.push(String(book.releaseYear));
+  if (book.pages) stats.push(`${book.pages}p`);
   if (stats.length) lines.push(stats.join(" · "));
 
   // Description and genres share a collapsed blockquote; genres only show once expanded.
