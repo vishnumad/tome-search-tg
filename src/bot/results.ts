@@ -9,10 +9,13 @@ export const usageText = (botUsername: string) =>
   `• Inline: type @${botUsername} <search term> in any chat and pick a result\n` +
   `• Guest mode: mention @${botUsername} <search term> in a chat I'm not a member of`;
 
-/** Shows a small cover thumbnail above the message, or no preview when there's no cover. */
+/**
+ * Previews the book's Hardcover page as a small thumbnail above the message, or shows no
+ * preview when there's no cover. Telegram can't shrink a preview of a bare image URL.
+ */
 const bookLinkPreview = (book: Book): LinkPreviewOptions =>
   book.coverUrl
-    ? { url: book.coverUrl, prefer_small_media: true, show_above_text: true }
+    ? { url: book.url, prefer_small_media: true, show_above_text: true }
     : { is_disabled: true };
 
 export const bookMessage = (book: Book) =>
