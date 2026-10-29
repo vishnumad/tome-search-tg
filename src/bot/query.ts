@@ -35,3 +35,21 @@ export function extractGuestQuery(
   if (query || !message.reply_to_message) return query;
   return stripBotMentions(message.reply_to_message, botUsername);
 }
+
+export type SearchKind = "book" | "series";
+
+export interface SearchQuery {
+  kind: SearchKind;
+  term: string;
+}
+
+const SERIES_PREFIX = /^series\s*:\s*/i;
+
+/** Inline and guest queries search books unless prefixed with "series:" ("series: the expanse"). */
+export function parseSearchQuery(text: string): SearchQuery {
+  const trimmed = text.trim();
+  const prefix = trimmed.match(SERIES_PREFIX);
+  return prefix
+    ? { kind: "series", term: trimmed.slice(prefix[0].length).trim() }
+    : { kind: "book", term: trimmed };
+}

@@ -1,7 +1,15 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { bookSummaryLine, formatBookHtml, formatRatingsCount, formatSeries, truncate } from "./format.ts";
-import type { Book } from "./hardcover/types.ts";
+import {
+  bookSummaryLine,
+  formatBookHtml,
+  formatRatingsCount,
+  formatSeries,
+  formatSeriesHtml,
+  seriesSummaryLine,
+  truncate,
+} from "./format.ts";
+import type { Book, SeriesDetails } from "./hardcover/types.ts";
 
 const book: Book = {
   id: 1,
@@ -126,5 +134,58 @@ describe("bookSummaryLine", () => {
   it("joins available parts", () => {
     assert.equal(bookSummaryLine(book), "Brandon Sanderson · The Mistborn Saga #1 of 3 · 4.46⭐ · 2006");
     assert.equal(bookSummaryLine({ ...book, authors: [], series: undefined, rating: undefined }), "2006");
+  });
+});
+
+const expanse: SeriesDetails = {
+  id: 42,
+  name: "The Expanse",
+  url: "https://hardcover.app/series/the-expanse",
+  author: "James S. A. Corey",
+  description: "Space & politics",
+  primaryBooksCount: 9,
+  booksCount: 23,
+  isCompleted: true,
+  hasMoreBooks: false,
+  books: [
+    { title: "Leviathan Wakes", url: "https://hardcover.app/books/leviathan-wakes", position: "1", releaseYear: 2011, rating: 4.123 },
+    { title: "Gods of Risk", url: "https://hardcover.app/books/gods-of-risk", position: "2.5" },
+  ],
+};
+
+describe("formatSeriesHtml", () => {
+  it("renders the series with its reading order", () => {
+    assert.equal(
+      formatSeriesHtml(expanse),
+      [
+        '<b><a href="https://hardcover.app/series/the-expanse">The Expanse</a></b>',
+        "by James S. A. Corey",
+        "9 books · 23 with extras · Complete",
+        '<blockquote expandable>#1 <a href="https://hardcover.app/books/leviathan-wakes">Leviathan Wakes</a> · 2011 · 4.12⭐',
+        '#2.5 <a href="https://hardcover.app/books/gods-of-risk">Gods of Risk</a></blockquote>',
+        "<blockquote expandable>Space &amp; politics</blockquote>",
+      ].join("\n"),
+    );
+  });
+
+  it("links to Hardcover when the list was cut short, and skips missing parts", () => {
+    const html = formatSeriesHtml({
+      ...expanse,
+      author: undefined,
+      description: undefined,
+      isCompleted: false,
+      primaryBooksCount: undefined,
+      booksCount: 1,
+      hasMoreBooks: true,
+    });
+    assert.match(html, /^<b>.*<\/b>\n1 book · Ongoing\n<blockquote expandable>/);
+    assert.match(html, /<a href="https:\/\/hardcover\.app\/series\/the-expanse">More on Hardcover<\/a><\/blockquote>$/);
+  });
+});
+
+describe("seriesSummaryLine", () => {
+  it("joins author, counts and completion", () => {
+    assert.equal(seriesSummaryLine(expanse), "James S. A. Corey · 9 books · 23 with extras · complete");
+    assert.equal(seriesSummaryLine({ ...expanse, author: undefined, isCompleted: false, booksCount: 9 }), "9 books");
   });
 });

@@ -1,9 +1,10 @@
-import type { Book, Series } from "./hardcover/types.ts";
+import type { Book, Series, SeriesBook, SeriesDetails } from "./hardcover/types.ts";
 
 // Telegram messages cap out at 4096 characters (after entity parsing). The description is
 // collapsed in an expandable blockquote, so it can be long, but must leave room for the rest.
 const DEFAULT_DESCRIPTION_LENGTH = 3000;
 const GENRE_COUNT = 5;
+const SERIES_DESCRIPTION_LENGTH = 1000;
 
 export const escapeHtml = (text: string) =>
   text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -73,5 +74,52 @@ export function formatBookHtml(
     details.push(escapeHtml(book.genres.slice(0, GENRE_COUNT).join(" · ")));
   }
   if (details.length) lines.push(`<blockquote expandable>${details.join("\n\n")}</blockquote>`);
+  return lines.join("\n");
+}
+
+/** "9 books · 23 with extras" (the second part only when companions exist). */
+export function formatSeriesCount({ primaryBooksCount, booksCount }: SeriesDetails): string {
+  const main = primaryBooksCount ?? booksCount;
+  const parts = [`${main} book${main === 1 ? "" : "s"}`];
+  if (booksCount > main) parts.push(`${booksCount} with extras`);
+  return parts.join(" · ");
+}
+
+/** One-line summary, used as the inline result description. */
+export function seriesSummaryLine(series: SeriesDetails): string {
+  const parts: string[] = [];
+  if (series.author) parts.push(series.author);
+  parts.push(formatSeriesCount(series));
+  if (series.isCompleted) parts.push("complete");
+  return parts.join(" · ");
+}
+
+function formatSeriesBookHtml(book: SeriesBook): string {
+  const extras: string[] = [];
+  if (book.releaseYear) extras.push(String(book.releaseYear));
+  if (book.rating) extras.push(formatRating(book.rating));
+  const link = `<a href="${escapeHtml(book.url)}">${escapeHtml(book.title)}</a>`;
+  return `#${escapeHtml(book.position)} ${link}${extras.length ? ` · ${extras.join(" · ")}` : ""}`;
+}
+
+/** Telegram HTML message body for a series. */
+export function formatSeriesHtml(series: SeriesDetails): string {
+  const lines = [`<b><a href="${escapeHtml(series.url)}">${escapeHtml(series.name)}</a></b>`];
+  if (series.author) lines.push(`by ${escapeHtml(series.author)}`);
+
+  const stats = [formatSeriesCount(series)];
+  if (series.isCompleted !== undefined) stats.push(series.isCompleted ? "Complete" : "Ongoing");
+  lines.push(escapeHtml(stats.join(" · ")));
+
+  // Both blockquotes are collapsed; the reading order shows its first few lines.
+  if (series.books.length) {
+    const books = series.books.map(formatSeriesBookHtml);
+    if (series.hasMoreBooks) books.push(`<a href="${escapeHtml(series.url)}">More on Hardcover</a>`);
+    lines.push(`<blockquote expandable>${books.join("\n")}</blockquote>`);
+  }
+  if (series.description) {
+    const description = escapeHtml(truncate(series.description, SERIES_DESCRIPTION_LENGTH));
+    lines.push(`<blockquote expandable>${description}</blockquote>`);
+  }
   return lines.join("\n");
 }

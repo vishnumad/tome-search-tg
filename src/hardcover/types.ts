@@ -22,3 +22,33 @@ export interface Book {
   /** Most relevant first. */
   genres: string[];
 }
+
+/** One book in a series' reading order. */
+export interface SeriesBook {
+  title: string;
+  url: string;
+  /** Display position, e.g. "1" or "2.5". */
+  position: string;
+  releaseYear?: number;
+  /** Average rating out of 5. */
+  rating?: number;
+  coverUrl?: string;
+}
+
+/** A series on its own, as returned by a series search. */
+export interface SeriesDetails {
+  id: number;
+  name: string;
+  url: string;
+  author?: string;
+  description?: string;
+  /** Number of main (non-companion) books. */
+  primaryBooksCount?: number;
+  /** All books, including novellas and other companions. */
+  booksCount: number;
+  isCompleted?: boolean;
+  /** Ordered by position. May be cut short for long series. */
+  books: SeriesBook[];
+  /** True when `books` was cut short. */
+  hasMoreBooks: boolean;
+}

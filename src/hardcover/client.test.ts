@@ -48,3 +48,33 @@ describe("createHardcoverClient", () => {
     );
   });
 });
+
+describe("searchSeries", () => {
+  function sequenceFetch(responses: unknown[]) {
+    const bodies: any[] = [];
+    const fetch = (async (_url: string, req: RequestInit) => {
+      bodies.push(JSON.parse(String(req.body)));
+      return new Response(JSON.stringify(responses[bodies.length - 1]), { status: 200 });
+    }) as typeof globalThis.fetch;
+    return { fetch, bodies };
+  }
+
+  it("searches series, then fetches their books in search order", async () => {
+    const row = (id: number, name: string) => ({ id, name, slug: name, books_count: 1, book_series: [] });
+    const { fetch, bodies } = sequenceFetch([
+      { data: { search: { error: null, ids: [2, 1], results: { hits: [{ document: { id: "2" } }, { document: { id: "1" } }] } } } },
+      { data: { series: [row(1, "b"), row(2, "a")] } },
+    ]);
+    const series = await createHardcoverClient({ apiKey: "k", fetch }).searchSeries(" expanse ", { limit: 2 });
+    assert.deepEqual(series.map((s) => s.name), ["a", "b"]);
+    assert.deepEqual(bodies[0]?.variables, { query: "expanse", perPage: 2 });
+    assert.match(bodies[0]?.query, /query_type: "Series"/);
+    assert.deepEqual(bodies[1]?.variables.ids, [2, 1]);
+  });
+
+  it("skips the details request when nothing matches", async () => {
+    const { fetch, bodies } = sequenceFetch([{ data: { search: { ids: [], results: { hits: [] } } } }]);
+    assert.deepEqual(await createHardcoverClient({ apiKey: "k", fetch }).searchSeries("zzz"), []);
+    assert.equal(bodies.length, 1);
+  });
+});

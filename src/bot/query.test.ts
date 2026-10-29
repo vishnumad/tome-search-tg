@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { MessageEntity } from "grammy/types";
-import { extractGuestQuery } from "./query.ts";
+import { extractGuestQuery, parseSearchQuery } from "./query.ts";
 
 const mention = (text: string, target: string): MessageEntity => ({
   type: "mention",
@@ -55,5 +55,21 @@ describe("extractGuestQuery", () => {
   it("returns an empty string when there is nothing to search", () => {
     const text = "@TomeSearchBot";
     assert.equal(extractGuestQuery({ text, entities: [mention(text, text)] }, "TomeSearchBot"), "");
+  });
+});
+
+describe("parseSearchQuery", () => {
+  it("searches books by default", () => {
+    assert.deepEqual(parseSearchQuery("  the expanse "), { kind: "book", term: "the expanse" });
+    assert.deepEqual(parseSearchQuery("a series of unfortunate events"), {
+      kind: "book",
+      term: "a series of unfortunate events",
+    });
+  });
+
+  it("searches series with the series: prefix", () => {
+    assert.deepEqual(parseSearchQuery("series: the expanse"), { kind: "series", term: "the expanse" });
+    assert.deepEqual(parseSearchQuery("Series:Discworld"), { kind: "series", term: "Discworld" });
+    assert.deepEqual(parseSearchQuery("series:"), { kind: "series", term: "" });
   });
 });

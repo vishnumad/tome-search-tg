@@ -1,9 +1,12 @@
 import { z } from "zod";
-import type { Book, Series } from "./types.ts";
+import type { Book, Series, SeriesBook, SeriesDetails } from "./types.ts";
 
 const BOOK_URL_BASE = "https://hardcover.app/books/";
 
+const SERIES_URL_BASE = "https://hardcover.app/series/";
+
 export const bookUrl = (slug: string) => `${BOOK_URL_BASE}${encodeURIComponent(slug)}`;
+export const seriesUrl = (slug: string) => `${SERIES_URL_BASE}${encodeURIComponent(slug)}`;
 
 // Only the fields we use; everything is lenient because the search index is loosely typed.
 const optionalString = z.string().nullish();
@@ -130,4 +133,103 @@ export function parseSearchResults(results: unknown): Book[] {
     if (parsed.success) books.push(toBook(parsed.data));
   }
   return books;
+}
+
+const idSchema = z.union([z.string(), z.number()]).transform(Number).pipe(z.number().int());
+
+/**
+ * Series IDs from a `query_type: "Series"` search, in relevance order. Reads the hits and falls
+ * back to the top-level `ids` list.
+ */
+export function parseSeriesSearchIds(results: unknown, ids?: readonly (number | null)[] | null): number[] {
+  const found: number[] = [];
+  if (results != null) {
+    for (const hit of resultsSchema.parse(results).hits) {
+      const id = z.object({ id: idSchema }).safeParse(hit.document);
+      if (id.success) found.push(id.data.id);
+    }
+  }
+  if (found.length === 0) found.push(...(ids ?? []).filter((id) => id != null));
+  return [...new Set(found)];
+}
+
+// Hasura returns `numeric` and `float8` as JSON numbers, but they're untyped scalars in gql.tada.
+const numberLike = z.union([z.number(), z.string()]).transform(Number).pipe(z.number()).nullish().catch(null);
+
+const seriesRowSchema = z.object({
+  id: z.number(),
+  name: z.string(),
+  slug: z.string(),
+  description: optionalString,
+  is_completed: z.boolean().nullish(),
+  books_count: z.number(),
+  primary_books_count: optionalNumber,
+  author: z.object({ name: optionalString }).nullish(),
+  book_series: z
+    .array(
+      z.object({
+        position: numberLike,
+        details: optionalString,
+        book: z
+          .object({
+            title: optionalString,
+            slug: optionalString,
+            release_year: optionalNumber,
+            rating: numberLike,
+            image: z.object({ url: optionalString }).nullish(),
+          })
+          .nullish(),
+      }),
+    )
+    .default([]),
+});
+
+function toSeriesBooks(rows: z.infer<typeof seriesRowSchema>["book_series"]): SeriesBook[] {
+  const books: SeriesBook[] = [];
+  for (const row of rows) {
+    const title = nonEmpty(row.book?.title);
+    const slug = nonEmpty(row.book?.slug);
+    const position = nonEmpty(row.details) ?? (row.position != null ? String(row.position) : undefined);
+    if (!title || !slug || !position) continue;
+    books.push({
+      title,
+      url: bookUrl(slug),
+      position,
+      releaseYear: row.book?.release_year ?? undefined,
+      rating: row.book?.rating || undefined,
+      coverUrl: nonEmpty(row.book?.image?.url),
+    });
+  }
+  return books;
+}
+
+/**
+ * Maps rows of the `series` table to `SeriesDetails`, ordered like `ids`. Malformed rows are
+ * skipped. Each series keeps at most `bookLimit` books.
+ */
+export function parseSeriesDetails(
+  rows: readonly unknown[],
+  ids: readonly number[],
+  { bookLimit = Infinity }: { bookLimit?: number } = {},
+): SeriesDetails[] {
+  const byId = new Map<number, SeriesDetails>();
+  for (const row of rows) {
+    const parsed = seriesRowSchema.safeParse(row);
+    if (!parsed.success) continue;
+    const s = parsed.data;
+    const books = toSeriesBooks(s.book_series);
+    byId.set(s.id, {
+      id: s.id,
+      name: s.name.trim(),
+      url: seriesUrl(s.slug),
+      author: nonEmpty(s.author?.name),
+      description: nonEmpty(s.description && htmlToText(s.description)),
+      primaryBooksCount: s.primary_books_count || undefined,
+      booksCount: s.books_count,
+      isCompleted: s.is_completed ?? undefined,
+      books: books.slice(0, bookLimit),
+      hasMoreBooks: books.length > bookLimit,
+    });
+  }
+  return ids.map((id) => byId.get(id)).filter((s) => s !== undefined);
 }
