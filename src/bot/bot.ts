@@ -1,8 +1,9 @@
 import { Bot, GrammyError } from "grammy";
 import type { InlineQueryResult } from "grammy/types";
 import type { HardcoverClient } from "../hardcover/client.ts";
+import { searchBooksAndSeries, type SearchResult } from "../search.ts";
 import { createCachedSearch } from "./cache.ts";
-import { extractGuestQuery, parseSearchQuery, type SearchKind, type SearchQuery } from "./query.ts";
+import { extractGuestQuery } from "./query.ts";
 import {
   bookMessage,
   bookToInlineResult,
@@ -15,8 +16,17 @@ import {
 
 const INLINE_RESULT_LIMIT = 10;
 const SEARCH_FAILED_TEXT = "Sorry, searching Hardcover failed. Please try again in a bit.";
+
+/** Book searches also return series whose name matches; /series returns only series. */
+type SearchKind = "mixed" | "series";
+
+interface SearchQuery {
+  kind: SearchKind;
+  term: string;
+}
+
 const noResultsText = ({ kind, term }: SearchQuery) =>
-  `No ${kind === "series" ? "series" : "books"} found for "${term}".`;
+  `No ${kind === "series" ? "series" : "books or series"} found for "${term}".`;
 
 // Inline query answers must arrive within ~10s; stale ones are rejected by Telegram.
 const isStaleQueryError = (err: unknown) =>
@@ -28,17 +38,22 @@ interface Hit {
   inline: InlineQueryResult;
 }
 
+const toHit = (result: SearchResult): Hit =>
+  result.kind === "book"
+    ? { message: bookMessage(result.book), inline: bookToInlineResult(result.book) }
+    : { message: seriesMessage(result.series), inline: seriesToInlineResult(result.series) };
+
 export function createBot(token: string, hardcover: HardcoverClient): Bot {
   const bot = new Bot(token);
   const cacheOptions = { ttlMs: 5 * 60_000, maxEntries: 500 };
   const searches: Record<SearchKind, (term: string) => Promise<Hit[]>> = {
-    book: createCachedSearch(async (term) => {
-      const books = await hardcover.searchBooks(term, { limit: INLINE_RESULT_LIMIT });
-      return books.map((book) => ({ message: bookMessage(book), inline: bookToInlineResult(book) }));
+    mixed: createCachedSearch(async (term) => {
+      const results = await searchBooksAndSeries(hardcover, term, { limit: INLINE_RESULT_LIMIT });
+      return results.map(toHit);
     }, cacheOptions),
     series: createCachedSearch(async (term) => {
       const series = await hardcover.searchSeries(term, { limit: INLINE_RESULT_LIMIT });
-      return series.map((s) => ({ message: seriesMessage(s), inline: seriesToInlineResult(s) }));
+      return series.map((s) => toHit({ kind: "series", series: s }));
     }, cacheOptions),
   };
 
@@ -55,7 +70,7 @@ export function createBot(token: string, hardcover: HardcoverClient): Bot {
   bot.command(["start", "help"], (ctx) => ctx.reply(usageText(ctx.me.username)));
 
   const commands: [string[], SearchKind][] = [
-    [["q"], "book"],
+    [["q"], "mixed"],
     [["series", "s"], "series"],
   ];
   for (const [names, kind] of commands) {
@@ -74,7 +89,7 @@ export function createBot(token: string, hardcover: HardcoverClient): Bot {
   }
 
   bot.on("inline_query", async (ctx) => {
-    const query = parseSearchQuery(ctx.inlineQuery.query);
+    const query: SearchQuery = { kind: "mixed", term: ctx.inlineQuery.query.trim() };
     try {
       if (!query.term) {
         await ctx.answerInlineQuery([], { cache_time: 0 });
@@ -98,7 +113,7 @@ export function createBot(token: string, hardcover: HardcoverClient): Bot {
   });
 
   async function guestResult(text: string, botUsername: string) {
-    const query = parseSearchQuery(text);
+    const query: SearchQuery = { kind: "mixed", term: text };
     if (!query.term) return messageResult("usage", `How to use @${botUsername}`, usageText(botUsername));
     const hits = await searchOrLog(query);
     if (!hits) return messageResult("error", "Search failed", SEARCH_FAILED_TEXT);

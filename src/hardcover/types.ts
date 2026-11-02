@@ -35,6 +35,12 @@ export interface SeriesBook {
   coverUrl?: string;
 }
 
+/** A series search hit, before its details are fetched. */
+export interface SeriesHit {
+  id: number;
+  name?: string;
+}
+
 /** A series on its own, as returned by a series search. */
 export interface SeriesDetails {
   id: number;

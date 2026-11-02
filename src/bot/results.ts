@@ -4,13 +4,11 @@ import { bookSummaryLine, formatBookHtml, formatSeriesHtml, seriesSummaryLine } 
 import type { Book, SeriesDetails } from "../hardcover/types.ts";
 
 export const usageText = (botUsername: string) =>
-  "Search Hardcover for a book:\n" +
+  "Search Hardcover for a book or series:\n" +
   "• /q <search term>\n" +
   `• Inline: type @${botUsername} <search term> in any chat and pick a result\n` +
-  `• Guest mode: mention @${botUsername} <search term> in a chat I'm not a member of\n\n` +
-  "Search for a series instead:\n" +
-  "• /series <series name>\n" +
-  `• Inline or guest mode: @${botUsername} series: <series name>`;
+  `• Guest mode: mention @${botUsername} <search term> in a chat I'm not a member of\n` +
+  "• /series <series name> searches only series";
 
 /** Shows the cover image above the message, or no preview when there's no cover. */
 const coverLinkPreview = (coverUrl: string | undefined): LinkPreviewOptions =>

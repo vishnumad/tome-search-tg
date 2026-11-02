@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { Book, Series, SeriesBook, SeriesDetails } from "./types.ts";
+import type { Book, Series, SeriesBook, SeriesDetails, SeriesHit } from "./types.ts";
 
 const BOOK_URL_BASE = "https://hardcover.app/books/";
 
@@ -137,20 +137,25 @@ export function parseSearchResults(results: unknown): Book[] {
 
 const idSchema = z.union([z.string(), z.number()]).transform(Number).pipe(z.number().int());
 
+const seriesHitSchema = z.object({ id: idSchema, name: z.string().nullish().catch(null) });
+
 /**
- * Series IDs from a `query_type: "Series"` search, in relevance order. Reads the hits and falls
- * back to the top-level `ids` list.
+ * Series hits from a `query_type: "Series"` search, in relevance order. Reads the hits and falls
+ * back to the top-level `ids` list (without names).
  */
-export function parseSeriesSearchIds(results: unknown, ids?: readonly (number | null)[] | null): number[] {
-  const found: number[] = [];
+export function parseSeriesHits(results: unknown, ids?: readonly (number | null)[] | null): SeriesHit[] {
+  const found = new Map<number, SeriesHit>();
   if (results != null) {
     for (const hit of resultsSchema.parse(results).hits) {
-      const id = z.object({ id: idSchema }).safeParse(hit.document);
-      if (id.success) found.push(id.data.id);
+      const parsed = seriesHitSchema.safeParse(hit.document);
+      if (!parsed.success || found.has(parsed.data.id)) continue;
+      found.set(parsed.data.id, { id: parsed.data.id, name: nonEmpty(parsed.data.name) });
     }
   }
-  if (found.length === 0) found.push(...(ids ?? []).filter((id) => id != null));
-  return [...new Set(found)];
+  if (found.size === 0) {
+    for (const id of ids ?? []) if (id != null && !found.has(id)) found.set(id, { id });
+  }
+  return [...found.values()];
 }
 
 // Hasura returns `numeric` and `float8` as JSON numbers, but they're untyped scalars in gql.tada.

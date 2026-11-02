@@ -77,4 +77,29 @@ describe("searchSeries", () => {
     assert.deepEqual(await createHardcoverClient({ apiKey: "k", fetch }).searchSeries("zzz"), []);
     assert.equal(bodies.length, 1);
   });
+
+  it("searches books and series in one request", async () => {
+    const { fetch, bodies } = sequenceFetch([
+      {
+        data: {
+          books: { error: null, results: { hits: [hit] } },
+          series: { error: null, ids: [4], results: { hits: [{ document: { id: 4, name: "Dune" } }] } },
+        },
+      },
+    ]);
+    const result = await createHardcoverClient({ apiKey: "k", fetch }).searchBooksAndSeries(" dune ", {
+      bookLimit: 10,
+      seriesLimit: 5,
+    });
+    assert.deepEqual(result.books.map((b) => b.title), ["Dune"]);
+    assert.deepEqual(result.series, [{ id: 4, name: "Dune" }]);
+    assert.equal(bodies.length, 1);
+    assert.deepEqual(bodies[0]?.variables, { query: "dune", bookLimit: 10, seriesLimit: 5 });
+  });
+
+  it("skips getSeries requests with no IDs", async () => {
+    const { fetch, bodies } = sequenceFetch([]);
+    assert.deepEqual(await createHardcoverClient({ apiKey: "k", fetch }).getSeries([]), []);
+    assert.equal(bodies.length, 0);
+  });
 });

@@ -4,6 +4,7 @@ import { parseArgs } from "node:util";
 import { loadHardcoverApiKey } from "./config.ts";
 import { bookSummaryLine, formatBookHtml, formatSeriesHtml, seriesSummaryLine } from "./format.ts";
 import { createHardcoverClient } from "./hardcover/client.ts";
+import { searchBooksAndSeries, type SearchResult } from "./search.ts";
 
 const { values, positionals } = parseArgs({
   allowPositionals: true,
@@ -36,22 +37,31 @@ interface Hit {
   html: string;
 }
 
-let raw: unknown;
-let hits: Hit[];
-if (values.series) {
-  const series = await client.searchSeries(query, { limit });
-  raw = series;
-  hits = series.map((s) => ({ title: s.name, summary: seriesSummaryLine(s), url: s.url, html: formatSeriesHtml(s) }));
-} else {
-  const books = await client.searchBooks(query, { limit });
-  raw = books;
-  hits = books.map((b) => ({ title: b.title, summary: bookSummaryLine(b), url: b.url, html: formatBookHtml(b) }));
-}
+const toHit = (result: SearchResult): Hit =>
+  result.kind === "book"
+    ? {
+        title: result.book.title,
+        summary: bookSummaryLine(result.book),
+        url: result.book.url,
+        html: formatBookHtml(result.book),
+      }
+    : {
+        title: `${result.series.name} (series)`,
+        summary: seriesSummaryLine(result.series),
+        url: result.series.url,
+        html: formatSeriesHtml(result.series),
+      };
+
+// Same as the bot: books plus series whose name matches, or only series with --series.
+const raw: SearchResult[] = values.series
+  ? (await client.searchSeries(query, { limit })).map((series) => ({ kind: "series", series }))
+  : await searchBooksAndSeries(client, query, { limit });
+const hits = raw.map(toHit);
 
 if (values.json) {
   console.log(JSON.stringify(raw, null, 2));
 } else if (hits.length === 0) {
-  console.log(`No ${values.series ? "series" : "books"} found for "${query}".`);
+  console.log(`No ${values.series ? "series" : "books or series"} found for "${query}".`);
 } else if (values.html) {
   console.log(hits.map((hit) => hit.html).join("\n\n---\n\n"));
 } else {
