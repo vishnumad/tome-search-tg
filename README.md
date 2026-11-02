@@ -1,6 +1,6 @@
 # TomeSearchBot
 
-Telegram bot that searches [Hardcover](https://hardcover.app) for books and posts book info.
+Telegram bot that searches [Hardcover](https://hardcover.app) for books and series.
 
 - `/q <search term>` posts the top match
 - Inline: type `@TomeSearchBot <search term>` in any chat and pick one of the results
@@ -46,7 +46,8 @@ Compose reads secrets from `.env` at runtime
 
 ## Layout
 
-- `src/hardcover/`: Hardcover API client (gql.tada-typed query) and parsing of search hits into `Book`s. It has no Telegram dependencies.
-- `src/format.ts`: renders a `Book` as Telegram HTML.
+- `src/hardcover/`: Hardcover API client (gql.tada-typed queries) and response parsing. It has no Telegram dependencies.
+- `src/search.ts`: combines book and series results.
+- `src/format.ts`: renders books and series as Telegram HTML.
 - `src/bot/`: grammY bot. It has handlers for `/q`, inline queries and guest messages, plus a small TTL cache in front of Hardcover, because inline queries fire on each keystroke.
 - `src/cli.ts`, `src/main.ts`: entrypoints.

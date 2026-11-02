@@ -1,9 +1,11 @@
 import { z } from "zod";
-import type { Book, Series } from "./types.ts";
+import type { Book, Series, SeriesBook, SeriesDetails, SeriesMatch } from "./types.ts";
 
 const BOOK_URL_BASE = "https://hardcover.app/books/";
+const SERIES_URL_BASE = "https://hardcover.app/series/";
 
 export const bookUrl = (slug: string) => `${BOOK_URL_BASE}${encodeURIComponent(slug)}`;
+export const seriesUrl = (slug: string) => `${SERIES_URL_BASE}${encodeURIComponent(slug)}`;
 
 // Only the fields we use; everything is lenient because the search index is loosely typed.
 const optionalString = z.string().nullish();
@@ -80,12 +82,19 @@ function parseAuthors(doc: Document): string[] {
   return [...new Set(names)];
 }
 
+// `details` is how Hardcover displays `position`, e.g. "1-3" for omnibuses. Some hold a title
+// instead, like "Stone Hunger", which the website hides.
+function displayPosition(details: string | null | undefined, position: number | null | undefined) {
+  const label = nonEmpty(details);
+  if (label) return /^\d/.test(label) ? label : undefined;
+  return position?.toString();
+}
+
 function parseSeries(doc: Document): Series | undefined {
   const featured = doc.featured_series;
   const name = nonEmpty(featured?.series?.name);
   if (!featured || !name) return undefined;
-  const position =
-    nonEmpty(featured.details) ?? (featured.position != null ? String(featured.position) : undefined);
+  const position = displayPosition(featured.details, featured.position);
   const total = featured.series?.primary_books_count || undefined;
   return { name, position, total };
 }
@@ -120,14 +129,117 @@ function toBook(doc: Document): Book {
   };
 }
 
-/** Parses the `jsonb` payload of `search(...).results`. Malformed hits are skipped. */
+/** Parses the `jsonb` payload of `search(...).results`. Malformed documents are skipped. */
 export function parseSearchResults(results: unknown): Book[] {
   if (results == null) return [];
   const { hits } = resultsSchema.parse(results);
   const books: Book[] = [];
-  for (const hit of hits) {
-    const parsed = documentSchema.safeParse(hit.document);
+  for (const { document } of hits) {
+    const parsed = documentSchema.safeParse(document);
     if (parsed.success) books.push(toBook(parsed.data));
   }
   return books;
+}
+
+const seriesMatchSchema = z.object({
+  id: z.union([z.string(), z.number()]).transform(Number),
+  name: z.string(),
+});
+
+/** Parses the `jsonb` payload of a series `search(...).results`. Malformed documents are skipped. */
+export function parseSeriesSearchResults(results: unknown): SeriesMatch[] {
+  if (results == null) return [];
+  const { hits } = resultsSchema.parse(results);
+  const matches: SeriesMatch[] = [];
+  for (const { document } of hits) {
+    const parsed = seriesMatchSchema.safeParse(document);
+    if (parsed.success) matches.push({ id: parsed.data.id, name: parsed.data.name.trim() });
+  }
+  return matches;
+}
+
+// Hasura returns `numeric` and `float8` as JSON numbers, but they're untyped scalars in gql.tada.
+const numberLike = z.union([z.number(), z.string()]).transform(Number).pipe(z.number()).nullish().catch(null);
+
+const seriesBookSchema = z.object({
+  book: z
+    .object({
+      title: optionalString,
+      slug: optionalString,
+      release_year: optionalNumber,
+      rating: numberLike,
+      image: z.object({ url: optionalString }).nullish(),
+    })
+    .nullish(),
+});
+
+const numberedSeriesBookSchema = seriesBookSchema.extend({
+  position: numberLike,
+  details: optionalString,
+});
+
+const seriesRowSchema = z.object({
+  id: z.number(),
+  name: z.string(),
+  slug: z.string(),
+  description: optionalString,
+  is_completed: z.boolean().nullish(),
+  books_count: z.number(),
+  primary_books_count: optionalNumber,
+  author: z.object({ name: optionalString }).nullish(),
+  numbered: z.array(numberedSeriesBookSchema).default([]),
+  unnumbered: z.array(seriesBookSchema).default([]),
+});
+
+function toSeriesBook({ book }: z.infer<typeof seriesBookSchema>, position?: string): SeriesBook | undefined {
+  const title = nonEmpty(book?.title);
+  const slug = nonEmpty(book?.slug);
+  if (!title || !slug) return undefined;
+  return {
+    title,
+    url: bookUrl(slug),
+    position,
+    releaseYear: book?.release_year ?? undefined,
+    rating: book?.rating || undefined,
+    coverUrl: nonEmpty(book?.image?.url),
+  };
+}
+
+function toSeriesBooks({ numbered, unnumbered }: z.infer<typeof seriesRowSchema>): SeriesBook[] {
+  const books = [
+    ...numbered.map((row) => {
+      const position = displayPosition(row.details, row.position);
+      return position ? toSeriesBook(row, position) : undefined;
+    }),
+    ...unnumbered.map((row) => toSeriesBook(row)),
+  ];
+  return books.filter((book) => book !== undefined);
+}
+
+/** Maps rows of the `series` table to `SeriesDetails`, ordered like `ids`. Malformed rows are skipped. */
+export function parseSeriesDetails(
+  rows: readonly unknown[],
+  ids: readonly number[],
+  { bookLimit = Infinity }: { bookLimit?: number } = {},
+): SeriesDetails[] {
+  const byId = new Map<number, SeriesDetails>();
+  for (const row of rows) {
+    const parsed = seriesRowSchema.safeParse(row);
+    if (!parsed.success) continue;
+    const series = parsed.data;
+    const books = toSeriesBooks(series);
+    byId.set(series.id, {
+      id: series.id,
+      name: series.name.trim(),
+      url: seriesUrl(series.slug),
+      author: nonEmpty(series.author?.name),
+      description: nonEmpty(series.description && htmlToText(series.description)),
+      primaryBooksCount: series.primary_books_count || undefined,
+      booksCount: series.books_count,
+      isCompleted: series.is_completed ?? undefined,
+      books: books.slice(0, bookLimit),
+      hasMoreBooks: books.length > bookLimit,
+    });
+  }
+  return ids.map((id) => byId.get(id)).filter((s) => s !== undefined);
 }

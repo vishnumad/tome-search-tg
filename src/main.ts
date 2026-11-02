@@ -13,7 +13,7 @@ if (!me.supports_inline_queries) {
 if (!me.supports_guest_queries) {
   console.warn('Guest mode is disabled for this bot. Enable "Guest Mode" in @BotFather\'s Mini App settings.');
 }
-await bot.api.setMyCommands([{ command: "q", description: "Search Hardcover for a book" }]);
+await bot.api.setMyCommands([{ command: "q", description: "Search Hardcover for a book or series" }]);
 
 const stop = () => bot.stop();
 process.once("SIGINT", stop);

@@ -1,13 +1,13 @@
 import { Bot, GrammyError } from "grammy";
 import type { HardcoverClient } from "../hardcover/client.ts";
-import type { Book } from "../hardcover/types.ts";
+import { search } from "../search.ts";
 import { createCachedSearch } from "./cache.ts";
 import { extractGuestQuery } from "./query.ts";
-import { bookMessage, bookToInlineResult, messageResult, usageText } from "./results.ts";
+import { type Match, messageResult, toMatch, usageText } from "./results.ts";
 
 const INLINE_RESULT_LIMIT = 10;
 const SEARCH_FAILED_TEXT = "Sorry, searching Hardcover failed. Please try again in a bit.";
-const noResultsText = (query: string) => `No books found for "${query}".`;
+const noResultsText = (query: string) => `No books or series found for "${query}".`;
 
 // Inline query answers must arrive within ~10s; stale ones are rejected by Telegram.
 const isStaleQueryError = (err: unknown) =>
@@ -15,16 +15,15 @@ const isStaleQueryError = (err: unknown) =>
 
 export function createBot(token: string, hardcover: HardcoverClient): Bot {
   const bot = new Bot(token);
-  const search = createCachedSearch(hardcover, {
-    limit: INLINE_RESULT_LIMIT,
-    ttlMs: 5 * 60_000,
-    maxEntries: 500,
-  });
+  const cachedSearch = createCachedSearch(
+    async (query) => (await search(hardcover, query, { limit: INLINE_RESULT_LIMIT })).map(toMatch),
+    { ttlMs: 5 * 60_000, maxEntries: 500 },
+  );
 
   /** Returns undefined (after logging) when the search fails. */
-  async function searchOrLog(query: string): Promise<Book[] | undefined> {
+  async function searchOrLog(query: string): Promise<Match[] | undefined> {
     try {
-      return await search(query);
+      return await cachedSearch(query);
     } catch (err) {
       console.error(`Hardcover search failed for "${query}":`, err);
       return undefined;
@@ -38,13 +37,12 @@ export function createBot(token: string, hardcover: HardcoverClient): Bot {
     const reply_parameters = { message_id: ctx.msg.message_id, allow_sending_without_reply: true };
     if (!query) return ctx.reply(usageText(ctx.me.username), { reply_parameters });
 
-    const books = await searchOrLog(query);
-    if (!books) return ctx.reply(SEARCH_FAILED_TEXT, { reply_parameters });
-    const [book] = books;
-    if (!book) return ctx.reply(noResultsText(query), { reply_parameters });
+    const matches = await searchOrLog(query);
+    if (!matches) return ctx.reply(SEARCH_FAILED_TEXT, { reply_parameters });
+    const [match] = matches;
+    if (!match) return ctx.reply(noResultsText(query), { reply_parameters });
 
-    const { text, options } = bookMessage(book);
-    await ctx.reply(text, { ...options, reply_parameters });
+    await ctx.reply(match.message.text, { ...match.message.options, reply_parameters });
   });
 
   bot.on("inline_query", async (ctx) => {
@@ -54,14 +52,14 @@ export function createBot(token: string, hardcover: HardcoverClient): Bot {
         await ctx.answerInlineQuery([], { cache_time: 0 });
         return;
       }
-      const books = await searchOrLog(query);
-      if (!books) {
+      const matches = await searchOrLog(query);
+      if (!matches) {
         await ctx.answerInlineQuery([messageResult("error", "Search failed", SEARCH_FAILED_TEXT)], {
           cache_time: 0,
         });
         return;
       }
-      await ctx.answerInlineQuery(books.map(bookToInlineResult), { cache_time: 300 });
+      await ctx.answerInlineQuery(matches.map((match) => match.inlineResult), { cache_time: 300 });
     } catch (err) {
       if (isStaleQueryError(err)) return;
       throw err;
@@ -70,10 +68,10 @@ export function createBot(token: string, hardcover: HardcoverClient): Bot {
 
   async function guestResult(query: string, botUsername: string) {
     if (!query) return messageResult("usage", `How to use @${botUsername}`, usageText(botUsername));
-    const books = await searchOrLog(query);
-    if (!books) return messageResult("error", "Search failed", SEARCH_FAILED_TEXT);
-    const [book] = books;
-    return book ? bookToInlineResult(book) : messageResult("no-results", "No results", noResultsText(query));
+    const matches = await searchOrLog(query);
+    if (!matches) return messageResult("error", "Search failed", SEARCH_FAILED_TEXT);
+    const [match] = matches;
+    return match ? match.inlineResult : messageResult("no-results", "No results", noResultsText(query));
   }
 
   // Guest mode allows exactly one reply per mention, so always answer, even on failure.

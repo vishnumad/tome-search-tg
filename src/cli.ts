@@ -2,8 +2,9 @@
 //   pnpm search "mistborn" [--limit N] [--json | --html]
 import { parseArgs } from "node:util";
 import { loadHardcoverApiKey } from "./config.ts";
-import { bookSummaryLine, formatBookHtml } from "./format.ts";
+import { bookSummaryLine, formatBookHtml, formatSeriesHtml, seriesSummaryLine } from "./format.ts";
 import { createHardcoverClient } from "./hardcover/client.ts";
+import { search, type SearchResult } from "./search.ts";
 
 const { values, positionals } = parseArgs({
   allowPositionals: true,
@@ -28,18 +29,34 @@ if (!Number.isInteger(limit) || limit < 1) {
 }
 
 const client = createHardcoverClient({ apiKey: loadHardcoverApiKey() });
-const books = await client.searchBooks(query, { limit });
+const results = await search(client, query, { limit });
+
+const toMatch = (result: SearchResult) =>
+  result.kind === "book"
+    ? {
+        title: result.book.title,
+        summary: bookSummaryLine(result.book),
+        url: result.book.url,
+        html: formatBookHtml(result.book),
+      }
+    : {
+        title: `${result.series.name} (series)`,
+        summary: seriesSummaryLine(result.series),
+        url: result.series.url,
+        html: formatSeriesHtml(result.series),
+      };
+const matches = results.map(toMatch);
 
 if (values.json) {
-  console.log(JSON.stringify(books, null, 2));
-} else if (books.length === 0) {
-  console.log(`No books found for "${query}".`);
+  console.log(JSON.stringify(results, null, 2));
+} else if (matches.length === 0) {
+  console.log(`No books or series found for "${query}".`);
 } else if (values.html) {
-  console.log(books.map((book) => formatBookHtml(book)).join("\n\n---\n\n"));
+  console.log(matches.map((match) => match.html).join("\n\n---\n\n"));
 } else {
-  books.forEach((book, i) => {
-    console.log(`${i + 1}. ${book.title}`);
-    console.log(`   ${bookSummaryLine(book)}`);
-    console.log(`   ${book.url}`);
+  matches.forEach((match, i) => {
+    console.log(`${i + 1}. ${match.title}`);
+    console.log(`   ${match.summary}`);
+    console.log(`   ${match.url}`);
   });
 }
