@@ -35,6 +35,12 @@ describe("parseSearchResults", () => {
     assert.match(book.coverUrl ?? "", /^https:\/\/assets\.hardcover\.app\//);
   });
 
+  it("drops a series position that is really a title", () => {
+    const featured_series = { details: "Stone Hunger", position: 0, series: { name: "The Broken Earth" } };
+    const [book] = parseSearchResults({ hits: [{ document: { id: 1, title: "T", slug: "t", featured_series } }] });
+    assert.deepEqual(book?.series, { name: "The Broken Earth", position: undefined, total: undefined });
+  });
+
   it("keeps genres in relevance order", () => {
     assert.deepEqual(byId(439183).genres, ["Classics", "Fantasy", "Science Fiction", "Comics", "Dystopian"]);
   });
@@ -111,7 +117,7 @@ describe("parseSeriesDetails", () => {
     books_count: 23,
     primary_books_count: 9,
     author: { name: "James S. A. Corey" },
-    book_series: [
+    numbered: [
       book(1, "Leviathan Wakes", { image: { url: "https://assets.hardcover.app/lw.jpg" } }),
       book(1.5, "The Butcher of Anderson Station", { rating: "3.9", release_year: null }),
       book(2, "Caliban's War"),
@@ -175,8 +181,44 @@ describe("parseSeriesDetails", () => {
     assert.equal(series?.hasMoreBooks, true);
   });
 
+  it("skips books whose details aren't a position", () => {
+    const [series] = parseSeriesDetails(
+      [
+        {
+          ...expanse,
+          numbered: [
+            { ...book(0, "Clarkesworld Magazine, Issue 94"), details: "Stone Hunger" },
+            book(1, "The Fifth Season"),
+            { ...book(11.9, "What the Storm Means"), details: "12 Prologue" },
+            { ...book(13, "Untitled"), details: null },
+          ],
+        },
+      ],
+      [42],
+    );
+    assert.deepEqual(series?.books.map((b) => b.position), ["1", "12 Prologue", "13"]);
+  });
+
+  it("adds unnumbered books after the numbered ones", () => {
+    const row = { ...expanse, unnumbered: [{ book: { title: "Threshold", slug: "threshold" } }, { book: { title: "" } }] };
+    const [series] = parseSeriesDetails([row], [42]);
+    assert.deepEqual(series?.books.map((b) => b.position), ["1", "1.5", "2", "3", undefined]);
+    assert.deepEqual(series?.books.at(-1), {
+      title: "Threshold",
+      url: "https://hardcover.app/books/threshold",
+      position: undefined,
+      releaseYear: undefined,
+      rating: undefined,
+      coverUrl: undefined,
+    });
+
+    const [cut] = parseSeriesDetails([row], [42], { bookLimit: 4 });
+    assert.equal(cut?.books.at(-1)?.title, "Abaddon's Gate");
+    assert.equal(cut?.hasMoreBooks, true);
+  });
+
   it("orders by the given IDs and skips malformed rows", () => {
-    const other = { ...expanse, id: 7, name: "Other", book_series: [] };
+    const other = { ...expanse, id: 7, name: "Other", numbered: [] };
     const rows = [expanse, { id: 8, name: "Broken" }, other];
     assert.deepEqual(
       parseSeriesDetails(rows, [7, 8, 42]).map((s) => s.id),
@@ -186,7 +228,7 @@ describe("parseSeriesDetails", () => {
 
   it("handles missing optional fields", () => {
     const [series] = parseSeriesDetails(
-      [{ id: 1, name: "Solo", slug: "solo", books_count: 1, primary_books_count: 0, author: null, book_series: [] }],
+      [{ id: 1, name: "Solo", slug: "solo", books_count: 1, primary_books_count: 0, author: null, numbered: [] }],
       [1],
     );
     assert.equal(series?.author, undefined);

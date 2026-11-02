@@ -78,10 +78,12 @@ export function formatBookHtml(
 }
 
 /** "9 books · 23 with extras" */
-function formatSeriesCount({ primaryBooksCount, booksCount }: SeriesDetails): string {
-  const main = primaryBooksCount ?? booksCount;
+function formatSeriesCount({ primaryBooksCount, booksCount, books, hasMoreBooks }: SeriesDetails): string {
+  // Count the list itself so the numbers match what's shown, unless it was cut short.
+  const total = hasMoreBooks ? booksCount : books.length;
+  const main = primaryBooksCount ?? total;
   const parts = [`${main} book${main === 1 ? "" : "s"}`];
-  if (booksCount > main) parts.push(`${booksCount} with extras`);
+  if (total > main) parts.push(`${total} with extras`);
   return parts.join(" · ");
 }
 
@@ -99,7 +101,8 @@ function formatSeriesBookHtml(book: SeriesBook): string {
   if (book.releaseYear) extras.push(String(book.releaseYear));
   if (book.rating) extras.push(formatRating(book.rating));
   const link = `<a href="${escapeHtml(book.url)}">${escapeHtml(book.title)}</a>`;
-  return `#${escapeHtml(book.position)} ${link}${extras.length ? ` · ${extras.join(" · ")}` : ""}`;
+  const position = book.position ? `#${escapeHtml(book.position)} ` : "";
+  return `${position}${link}${extras.length ? ` · ${extras.join(" · ")}` : ""}`;
 }
 
 /** Telegram HTML message body for a series. */

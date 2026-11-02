@@ -82,12 +82,19 @@ function parseAuthors(doc: Document): string[] {
   return [...new Set(names)];
 }
 
+// `details` is how Hardcover displays `position`, e.g. "1-3" for omnibuses. Some hold a title
+// instead, like "Stone Hunger", which the website hides.
+function displayPosition(details: string | null | undefined, position: number | null | undefined) {
+  const label = nonEmpty(details);
+  if (label) return /^\d/.test(label) ? label : undefined;
+  return position?.toString();
+}
+
 function parseSeries(doc: Document): Series | undefined {
   const featured = doc.featured_series;
   const name = nonEmpty(featured?.series?.name);
   if (!featured || !name) return undefined;
-  const position =
-    nonEmpty(featured.details) ?? (featured.position != null ? String(featured.position) : undefined);
+  const position = displayPosition(featured.details, featured.position);
   const total = featured.series?.primary_books_count || undefined;
   return { name, position, total };
 }
@@ -154,6 +161,23 @@ export function parseSeriesSearchResults(results: unknown): SeriesMatch[] {
 // Hasura returns `numeric` and `float8` as JSON numbers, but they're untyped scalars in gql.tada.
 const numberLike = z.union([z.number(), z.string()]).transform(Number).pipe(z.number()).nullish().catch(null);
 
+const seriesBookSchema = z.object({
+  book: z
+    .object({
+      title: optionalString,
+      slug: optionalString,
+      release_year: optionalNumber,
+      rating: numberLike,
+      image: z.object({ url: optionalString }).nullish(),
+    })
+    .nullish(),
+});
+
+const numberedSeriesBookSchema = seriesBookSchema.extend({
+  position: numberLike,
+  details: optionalString,
+});
+
 const seriesRowSchema = z.object({
   id: z.number(),
   name: z.string(),
@@ -163,42 +187,33 @@ const seriesRowSchema = z.object({
   books_count: z.number(),
   primary_books_count: optionalNumber,
   author: z.object({ name: optionalString }).nullish(),
-  book_series: z
-    .array(
-      z.object({
-        position: numberLike,
-        details: optionalString,
-        book: z
-          .object({
-            title: optionalString,
-            slug: optionalString,
-            release_year: optionalNumber,
-            rating: numberLike,
-            image: z.object({ url: optionalString }).nullish(),
-          })
-          .nullish(),
-      }),
-    )
-    .default([]),
+  numbered: z.array(numberedSeriesBookSchema).default([]),
+  unnumbered: z.array(seriesBookSchema).default([]),
 });
 
-function toSeriesBooks(rows: z.infer<typeof seriesRowSchema>["book_series"]): SeriesBook[] {
-  const books: SeriesBook[] = [];
-  for (const row of rows) {
-    const title = nonEmpty(row.book?.title);
-    const slug = nonEmpty(row.book?.slug);
-    const position = nonEmpty(row.details) ?? (row.position != null ? String(row.position) : undefined);
-    if (!title || !slug || !position) continue;
-    books.push({
-      title,
-      url: bookUrl(slug),
-      position,
-      releaseYear: row.book?.release_year ?? undefined,
-      rating: row.book?.rating || undefined,
-      coverUrl: nonEmpty(row.book?.image?.url),
-    });
-  }
-  return books;
+function toSeriesBook({ book }: z.infer<typeof seriesBookSchema>, position?: string): SeriesBook | undefined {
+  const title = nonEmpty(book?.title);
+  const slug = nonEmpty(book?.slug);
+  if (!title || !slug) return undefined;
+  return {
+    title,
+    url: bookUrl(slug),
+    position,
+    releaseYear: book?.release_year ?? undefined,
+    rating: book?.rating || undefined,
+    coverUrl: nonEmpty(book?.image?.url),
+  };
+}
+
+function toSeriesBooks({ numbered, unnumbered }: z.infer<typeof seriesRowSchema>): SeriesBook[] {
+  const books = [
+    ...numbered.map((row) => {
+      const position = displayPosition(row.details, row.position);
+      return position ? toSeriesBook(row, position) : undefined;
+    }),
+    ...unnumbered.map((row) => toSeriesBook(row)),
+  ];
+  return books.filter((book) => book !== undefined);
 }
 
 /** Maps rows of the `series` table to `SeriesDetails`, ordered like `ids`. Malformed rows are skipped. */
@@ -212,7 +227,7 @@ export function parseSeriesDetails(
     const parsed = seriesRowSchema.safeParse(row);
     if (!parsed.success) continue;
     const series = parsed.data;
-    const books = toSeriesBooks(series.book_series);
+    const books = toSeriesBooks(series);
     byId.set(series.id, {
       id: series.id,
       name: series.name.trim(),

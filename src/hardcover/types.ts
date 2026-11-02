@@ -27,8 +27,8 @@ export interface Book {
 export interface SeriesBook {
   title: string;
   url: string;
-  /** Display position, e.g. "1" or "2.5". */
-  position: string;
+  /** Display position, e.g. "1" or "2.5". Missing for unnumbered companions. */
+  position?: string;
   releaseYear?: number;
   /** Average rating out of 5. */
   rating?: number;
@@ -48,10 +48,10 @@ export interface SeriesDetails {
   description?: string;
   /** Number of main (non-companion) books. */
   primaryBooksCount?: number;
-  /** All books, including novellas and other companions. */
+  /** Hardcover's count of all books, including companions the `books` list leaves out. */
   booksCount: number;
   isCompleted?: boolean;
-  /** Ordered by position. */
+  /** Ordered by position, then unnumbered books. */
   books: SeriesBook[];
   hasMoreBooks: boolean;
 }

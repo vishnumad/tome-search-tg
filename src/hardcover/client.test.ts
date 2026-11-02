@@ -65,7 +65,7 @@ describe("searchBooksAndSeries", () => {
 
 describe("getSeries", () => {
   it("returns series in the order of the given IDs", async () => {
-    const row = (id: number, name: string) => ({ id, name, slug: name, books_count: 1, book_series: [] });
+    const row = (id: number, name: string) => ({ id, name, slug: name, books_count: 1, numbered: [] });
     const { fetch, calls } = stubFetch({ data: { series: [row(1, "b"), row(2, "a")] } });
     const series = await createHardcoverClient({ apiKey: "k", fetch }).getSeries([2, 1]);
     assert.deepEqual(

@@ -19,49 +19,76 @@ const SearchBooksAndSeriesQuery = graphql(`
   }
 `);
 
-// Picks one book per position, skipping merged duplicates, partial editions and compilations,
-// as recommended in https://docs.hardcover.app/api/guides/gettingbooksinseries/
-const SeriesDetailsQuery = graphql(`
-  query SeriesDetails($ids: [Int!]!, $bookLimit: Int!) {
-    series(where: { id: { _in: $ids } }) {
-      id
-      name
+const SeriesBookFragment = graphql(`
+  fragment SeriesBook on book_series @_unmask {
+    book {
+      title
       slug
-      description
-      is_completed
-      books_count
-      primary_books_count
-      author {
-        name
-      }
-      book_series(
-        distinct_on: position
-        order_by: [{ position: asc }, { book: { users_count: desc } }]
-        where: {
-          position: { _is_null: false }
-          compilation: { _eq: false }
-          book: { canonical_id: { _is_null: true }, is_partial_book: { _eq: false } }
-        }
-        limit: $bookLimit
-      ) {
-        position
-        details
-        book {
-          title
-          slug
-          release_year
-          rating
-          image {
-            url
-          }
-        }
+      release_year
+      rating
+      image {
+        url
       }
     }
   }
 `);
 
+// Follows https://docs.hardcover.app/api/guides/gettingbooksinseries/ to skip merged duplicates,
+// partial editions and compilations.
+const SeriesDetailsQuery = graphql(
+  `
+    query SeriesDetails($ids: [Int!]!, $bookLimit: Int!, $minUnnumberedReaders: Int!) {
+      series(where: { id: { _in: $ids } }) {
+        id
+        name
+        slug
+        description
+        is_completed
+        books_count
+        primary_books_count
+        author {
+          name
+        }
+        # The most popular book at each position, as the website shows it.
+        numbered: book_series(
+          distinct_on: position
+          order_by: [{ position: asc }, { book: { users_count: desc } }]
+          where: {
+            position: { _is_null: false }
+            compilation: { _eq: false }
+            book: { canonical_id: { _is_null: true }, is_partial_book: { _eq: false } }
+          }
+          limit: $bookLimit
+        ) {
+          position
+          details
+          ...SeriesBook
+        }
+        # Companions without a position. The reader minimum skips stray editions.
+        unnumbered: book_series(
+          order_by: [{ book: { users_count: desc } }]
+          where: {
+            position: { _is_null: true }
+            compilation: { _eq: false }
+            book: {
+              canonical_id: { _is_null: true }
+              is_partial_book: { _eq: false }
+              users_count: { _gte: $minUnnumberedReaders }
+            }
+          }
+          limit: $bookLimit
+        ) {
+          ...SeriesBook
+        }
+      }
+    }
+  `,
+  [SeriesBookFragment],
+);
+
 // Keeps series messages within Telegram's length limit.
 const SERIES_BOOK_LIMIT = 30;
+const MIN_UNNUMBERED_READERS = 10;
 
 /** Hardcover API keys are shown with a "Bearer " prefix, which users may or may not copy. */
 export const authorizationHeader = (apiKey: string) =>
@@ -142,7 +169,11 @@ export function createHardcoverClient({
     async getSeries(ids) {
       if (ids.length === 0) return [];
       // The extra book shows whether the list was cut short.
-      const data = await request(SeriesDetailsQuery, { ids: [...ids], bookLimit: SERIES_BOOK_LIMIT + 1 });
+      const data = await request(SeriesDetailsQuery, {
+        ids: [...ids],
+        bookLimit: SERIES_BOOK_LIMIT + 1,
+        minUnnumberedReaders: MIN_UNNUMBERED_READERS,
+      });
       return parseSeriesDetails(data.series, ids, { bookLimit: SERIES_BOOK_LIMIT });
     },
   };

@@ -143,13 +143,14 @@ const expanse: SeriesDetails = {
   url: "https://hardcover.app/series/the-expanse",
   author: "James S. A. Corey",
   description: "Space & politics",
-  primaryBooksCount: 9,
+  primaryBooksCount: 1,
   booksCount: 23,
   isCompleted: true,
   hasMoreBooks: false,
   books: [
     { title: "Leviathan Wakes", url: "https://hardcover.app/books/leviathan-wakes", position: "1", releaseYear: 2011, rating: 4.123 },
     { title: "Gods of Risk", url: "https://hardcover.app/books/gods-of-risk", position: "2.5" },
+    { title: "Memory's Legion", url: "https://hardcover.app/books/memorys-legion", releaseYear: 2022 },
   ],
 };
 
@@ -160,9 +161,10 @@ describe("formatSeriesHtml", () => {
       [
         '<b><a href="https://hardcover.app/series/the-expanse">The Expanse</a></b>',
         "by James S. A. Corey",
-        "9 books · 23 with extras · Complete",
+        "1 book · 3 with extras · Complete",
         '<blockquote expandable>#1 <a href="https://hardcover.app/books/leviathan-wakes">Leviathan Wakes</a> · 2011 · 4.12⭐',
-        '#2.5 <a href="https://hardcover.app/books/gods-of-risk">Gods of Risk</a></blockquote>',
+        '#2.5 <a href="https://hardcover.app/books/gods-of-risk">Gods of Risk</a>',
+        '<a href="https://hardcover.app/books/memorys-legion">Memory\'s Legion</a> · 2022</blockquote>',
         "<blockquote expandable>Space &amp; politics</blockquote>",
       ].join("\n"),
     );
@@ -174,18 +176,17 @@ describe("formatSeriesHtml", () => {
       author: undefined,
       description: undefined,
       isCompleted: false,
-      primaryBooksCount: undefined,
-      booksCount: 1,
+      primaryBooksCount: 9,
       hasMoreBooks: true,
     });
-    assert.match(html, /^<b>.*<\/b>\n1 book · Ongoing\n<blockquote expandable>/);
+    assert.match(html, /^<b>.*<\/b>\n9 books · 23 with extras · Ongoing\n<blockquote expandable>/);
     assert.match(html, /<a href="https:\/\/hardcover\.app\/series\/the-expanse">More on Hardcover<\/a><\/blockquote>$/);
   });
 });
 
 describe("seriesSummaryLine", () => {
   it("joins author, counts and completion", () => {
-    assert.equal(seriesSummaryLine(expanse), "James S. A. Corey · 9 books · 23 with extras · complete");
-    assert.equal(seriesSummaryLine({ ...expanse, author: undefined, isCompleted: false, booksCount: 9 }), "9 books");
+    assert.equal(seriesSummaryLine(expanse), "James S. A. Corey · 1 book · 3 with extras · complete");
+    assert.equal(seriesSummaryLine({ ...expanse, author: undefined, isCompleted: false, primaryBooksCount: 3 }), "3 books");
   });
 });
