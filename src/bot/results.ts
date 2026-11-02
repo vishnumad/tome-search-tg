@@ -2,13 +2,13 @@ import { InlineQueryResultBuilder } from "grammy";
 import type { InlineQueryResult, LinkPreviewOptions } from "grammy/types";
 import { bookSummaryLine, formatBookHtml, formatSeriesHtml, seriesSummaryLine } from "../format.ts";
 import type { Book, SeriesDetails } from "../hardcover/types.ts";
+import type { SearchResult } from "../search.ts";
 
 export const usageText = (botUsername: string) =>
   "Search Hardcover for a book or series:\n" +
   "• /q <search term>\n" +
   `• Inline: type @${botUsername} <search term> in any chat and pick a result\n` +
-  `• Guest mode: mention @${botUsername} <search term> in a chat I'm not a member of\n` +
-  "• /series <series name> searches only series";
+  `• Guest mode: mention @${botUsername} <search term> in a chat I'm not a member of`;
 
 /** Shows the cover image above the message, or no preview when there's no cover. */
 const coverLinkPreview = (coverUrl: string | undefined): LinkPreviewOptions =>
@@ -17,33 +17,34 @@ const coverLinkPreview = (coverUrl: string | undefined): LinkPreviewOptions =>
 const htmlMessage = (text: string, coverUrl: string | undefined) =>
   ({ text, options: { parse_mode: "HTML", link_preview_options: coverLinkPreview(coverUrl) } }) as const;
 
-export type Message = ReturnType<typeof htmlMessage>;
+export interface Match {
+  message: ReturnType<typeof htmlMessage>;
+  inlineResult: InlineQueryResult;
+}
 
-export const bookMessage = (book: Book): Message => htmlMessage(formatBookHtml(book), book.coverUrl);
-
-export function bookToInlineResult(book: Book): InlineQueryResult {
-  const { text, options } = bookMessage(book);
-  return InlineQueryResultBuilder.article(String(book.id), book.title, {
+function bookMatch(book: Book): Match {
+  const message = htmlMessage(formatBookHtml(book), book.coverUrl);
+  const inlineResult = InlineQueryResultBuilder.article(String(book.id), book.title, {
     description: bookSummaryLine(book),
     ...(book.coverUrl && { thumbnail_url: book.coverUrl }),
-  }).text(text, options);
+  }).text(message.text, message.options);
+  return { message, inlineResult };
 }
 
-/** Series have no cover of their own, so use the first book's. */
-const seriesCover = (series: SeriesDetails) => series.books.find((b) => b.coverUrl)?.coverUrl;
-
-export const seriesMessage = (series: SeriesDetails): Message =>
-  htmlMessage(formatSeriesHtml(series), seriesCover(series));
-
-export function seriesToInlineResult(series: SeriesDetails): InlineQueryResult {
-  const { text, options } = seriesMessage(series);
-  const cover = seriesCover(series);
+function seriesMatch(series: SeriesDetails): Match {
+  // Series have no cover of their own.
+  const coverUrl = series.books.find((book) => book.coverUrl)?.coverUrl;
+  const message = htmlMessage(formatSeriesHtml(series), coverUrl);
   // Prefixed so series IDs never collide with book IDs.
-  return InlineQueryResultBuilder.article(`series-${series.id}`, series.name, {
+  const inlineResult = InlineQueryResultBuilder.article(`series-${series.id}`, series.name, {
     description: seriesSummaryLine(series),
-    ...(cover && { thumbnail_url: cover }),
-  }).text(text, options);
+    ...(coverUrl && { thumbnail_url: coverUrl }),
+  }).text(message.text, message.options);
+  return { message, inlineResult };
 }
+
+export const toMatch = (result: SearchResult): Match =>
+  result.kind === "book" ? bookMatch(result.book) : seriesMatch(result.series);
 
 /** A plain-text result, for usage hints, empty results and errors. */
 export const messageResult = (id: string, title: string, text: string): InlineQueryResult =>

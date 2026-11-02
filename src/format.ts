@@ -77,8 +77,8 @@ export function formatBookHtml(
   return lines.join("\n");
 }
 
-/** "9 books · 23 with extras" (the second part only when companions exist). */
-export function formatSeriesCount({ primaryBooksCount, booksCount }: SeriesDetails): string {
+/** "9 books · 23 with extras" */
+function formatSeriesCount({ primaryBooksCount, booksCount }: SeriesDetails): string {
   const main = primaryBooksCount ?? booksCount;
   const parts = [`${main} book${main === 1 ? "" : "s"}`];
   if (booksCount > main) parts.push(`${booksCount} with extras`);
@@ -111,7 +111,6 @@ export function formatSeriesHtml(series: SeriesDetails): string {
   if (series.isCompleted !== undefined) stats.push(series.isCompleted ? "Complete" : "Ongoing");
   lines.push(escapeHtml(stats.join(" · ")));
 
-  // Both blockquotes are collapsed; the reading order shows its first few lines.
   if (series.books.length) {
     const books = series.books.map(formatSeriesBookHtml);
     if (series.hasMoreBooks) books.push(`<a href="${escapeHtml(series.url)}">More on Hardcover</a>`);

@@ -16,8 +16,8 @@ export function createCachedSearch<T>(
   return (query) => {
     const key = query.trim().replace(/\s+/g, " ").toLowerCase();
     const now = Date.now();
-    const hit = cache.get(key);
-    if (hit && hit.expires > now) return hit.result;
+    const cached = cache.get(key);
+    if (cached && cached.expires > now) return cached.result;
 
     const result = search(key);
     cache.delete(key);

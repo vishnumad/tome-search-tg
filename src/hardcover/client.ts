@@ -1,31 +1,11 @@
 import { print } from "graphql";
 import type { TadaDocumentNode } from "gql.tada";
 import { graphql, type ResultOf, type VariablesOf } from "./graphql.ts";
-import { parseSearchResults, parseSeriesDetails, parseSeriesHits } from "./parse.ts";
-import type { Book, SeriesDetails, SeriesHit } from "./types.ts";
+import { parseSearchResults, parseSeriesDetails, parseSeriesSearchResults } from "./parse.ts";
+import type { Book, SeriesDetails, SeriesMatch } from "./types.ts";
 
 export const HARDCOVER_API_URL = "https://api.hardcover.app/v1/graphql";
 
-const SearchBooksQuery = graphql(`
-  query SearchBooks($query: String!, $perPage: Int!) {
-    search(query: $query, query_type: "Book", per_page: $perPage, page: 1) {
-      error
-      results
-    }
-  }
-`);
-
-const SearchSeriesQuery = graphql(`
-  query SearchSeries($query: String!, $perPage: Int!) {
-    search(query: $query, query_type: "Series", per_page: $perPage, page: 1) {
-      error
-      ids
-      results
-    }
-  }
-`);
-
-// Both searches in one round trip. Each still counts as a request towards Hardcover's rate limits.
 const SearchBooksAndSeriesQuery = graphql(`
   query SearchBooksAndSeries($query: String!, $bookLimit: Int!, $seriesLimit: Int!) {
     books: search(query: $query, query_type: "Book", per_page: $bookLimit, page: 1) {
@@ -34,7 +14,6 @@ const SearchBooksAndSeriesQuery = graphql(`
     }
     series: search(query: $query, query_type: "Series", per_page: $seriesLimit, page: 1) {
       error
-      ids
       results
     }
   }
@@ -81,8 +60,8 @@ const SeriesDetailsQuery = graphql(`
   }
 `);
 
-/** Books listed per series, to keep messages within Telegram's length limit. */
-export const SERIES_BOOK_LIMIT = 30;
+// Keeps series messages within Telegram's length limit.
+const SERIES_BOOK_LIMIT = 30;
 
 /** Hardcover API keys are shown with a "Bearer " prefix, which users may or may not copy. */
 export const authorizationHeader = (apiKey: string) =>
@@ -99,23 +78,14 @@ export interface HardcoverClientOptions {
   fetch?: typeof fetch;
 }
 
-export interface SearchOptions {
-  limit?: number;
+export interface SearchLimits {
+  bookLimit: number;
+  seriesLimit: number;
 }
 
 export interface HardcoverClient {
-  searchBooks(query: string, options?: SearchOptions): Promise<Book[]>;
-  /** Searches series by name, returning each with its books in reading order. */
-  searchSeries(query: string, options?: SearchOptions): Promise<SeriesDetails[]>;
-  /**
-   * Searches books and series in one round trip. Series come back as bare hits; fetch the ones
-   * worth showing with `getSeries`.
-   */
-  searchBooksAndSeries(
-    query: string,
-    options: { bookLimit: number; seriesLimit: number },
-  ): Promise<{ books: Book[]; series: SeriesHit[] }>;
-  /** Fetches series with their books in reading order, in the order of `ids`. */
+  /** The search index has no reading order, so fetch series details with `getSeries`. */
+  searchBooksAndSeries(query: string, limits: SearchLimits): Promise<{ books: Book[]; series: SeriesMatch[] }>;
   getSeries(ids: readonly number[]): Promise<SeriesDetails[]>;
 }
 
@@ -156,44 +126,24 @@ export function createHardcoverClient({
     return body.data;
   }
 
-  async function getSeries(ids: readonly number[]): Promise<SeriesDetails[]> {
-    if (ids.length === 0) return [];
-    // One extra book tells us whether the list was cut short.
-    const data = await request(SeriesDetailsQuery, { ids: [...ids], bookLimit: SERIES_BOOK_LIMIT + 1 });
-    return parseSeriesDetails(data.series, ids, { bookLimit: SERIES_BOOK_LIMIT });
-  }
-
   return {
-    getSeries,
-
-    async searchBooks(query, { limit = 5 } = {}) {
-      const trimmed = query.trim();
-      if (!trimmed) return [];
-      const data = await request(SearchBooksQuery, { query: trimmed, perPage: limit });
-      if (data.search?.error) throw new HardcoverError(data.search.error);
-      return parseSearchResults(data.search?.results).slice(0, limit);
-    },
-
-    async searchSeries(query, { limit = 5 } = {}) {
-      const trimmed = query.trim();
-      if (!trimmed) return [];
-      const search = await request(SearchSeriesQuery, { query: trimmed, perPage: limit });
-      if (search.search?.error) throw new HardcoverError(search.search.error);
-      const hits = parseSeriesHits(search.search?.results, search.search?.ids).slice(0, limit);
-      // The search index only has a flat list of titles, so fetch the books in order separately.
-      return getSeries(hits.map((hit) => hit.id));
-    },
-
     async searchBooksAndSeries(query, { bookLimit, seriesLimit }) {
       const trimmed = query.trim();
       if (!trimmed) return { books: [], series: [] };
       const data = await request(SearchBooksAndSeriesQuery, { query: trimmed, bookLimit, seriesLimit });
-      if (data.books?.error) throw new HardcoverError(data.books.error);
-      if (data.series?.error) throw new HardcoverError(data.series.error);
+      const error = data.books?.error ?? data.series?.error;
+      if (error) throw new HardcoverError(error);
       return {
         books: parseSearchResults(data.books?.results).slice(0, bookLimit),
-        series: parseSeriesHits(data.series?.results, data.series?.ids).slice(0, seriesLimit),
+        series: parseSeriesSearchResults(data.series?.results).slice(0, seriesLimit),
       };
+    },
+
+    async getSeries(ids) {
+      if (ids.length === 0) return [];
+      // The extra book shows whether the list was cut short.
+      const data = await request(SeriesDetailsQuery, { ids: [...ids], bookLimit: SERIES_BOOK_LIMIT + 1 });
+      return parseSeriesDetails(data.series, ids, { bookLimit: SERIES_BOOK_LIMIT });
     },
   };
 }

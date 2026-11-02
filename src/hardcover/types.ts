@@ -35,13 +35,11 @@ export interface SeriesBook {
   coverUrl?: string;
 }
 
-/** A series search hit, before its details are fetched. */
-export interface SeriesHit {
+export interface SeriesMatch {
   id: number;
-  name?: string;
+  name: string;
 }
 
-/** A series on its own, as returned by a series search. */
 export interface SeriesDetails {
   id: number;
   name: string;
@@ -53,8 +51,7 @@ export interface SeriesDetails {
   /** All books, including novellas and other companions. */
   booksCount: number;
   isCompleted?: boolean;
-  /** Ordered by position. May be cut short for long series. */
+  /** Ordered by position. */
   books: SeriesBook[];
-  /** True when `books` was cut short. */
   hasMoreBooks: boolean;
 }

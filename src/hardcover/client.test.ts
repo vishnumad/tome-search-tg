@@ -11,95 +11,73 @@ function stubFetch(response: unknown, init: ResponseInit = { status: 200 }) {
   return { fetch, calls };
 }
 
-const hit = { document: { id: "7", title: "Dune", slug: "dune" } };
+const limits = { bookLimit: 3, seriesLimit: 2 };
+const dune = { document: { id: "7", title: "Dune", slug: "dune" } };
+const duneSeries = { document: { id: "4", name: "Dune" } };
+const emptySearch = { data: { books: { results: { hits: [] } }, series: { results: { hits: [] } } } };
 
-describe("createHardcoverClient", () => {
+describe("searchBooksAndSeries", () => {
   it("adds the Bearer prefix when missing and sends variables", async () => {
-    const { fetch, calls } = stubFetch({ data: { search: { error: null, results: { hits: [hit] } } } });
-    const books = await createHardcoverClient({ apiKey: "hc_pat_x", fetch }).searchBooks("  dune ", { limit: 3 });
+    const { fetch, calls } = stubFetch({
+      data: { books: { error: null, results: { hits: [dune] } }, series: { error: null, results: { hits: [duneSeries] } } },
+    });
+    const { books, series } = await createHardcoverClient({ apiKey: "hc_pat_x", fetch }).searchBooksAndSeries(
+      "  dune ",
+      limits,
+    );
     assert.equal(books[0]?.title, "Dune");
+    assert.deepEqual(series, [{ id: 4, name: "Dune" }]);
     assert.equal(calls[0]?.headers.get("authorization"), "Bearer hc_pat_x");
-    assert.deepEqual(calls[0]?.body.variables, { query: "dune", perPage: 3 });
-    assert.match(calls[0]?.body.query, /search\(/);
+    assert.deepEqual(calls[0]?.body.variables, { query: "dune", ...limits });
   });
 
   it("does not double the Bearer prefix", async () => {
-    const { fetch, calls } = stubFetch({ data: { search: { results: { hits: [] } } } });
-    await createHardcoverClient({ apiKey: "Bearer hc_pat_x", fetch }).searchBooks("dune");
+    const { fetch, calls } = stubFetch(emptySearch);
+    await createHardcoverClient({ apiKey: "Bearer hc_pat_x", fetch }).searchBooksAndSeries("dune", limits);
     assert.equal(calls[0]?.headers.get("authorization"), "Bearer hc_pat_x");
   });
 
   it("skips the request for blank queries", async () => {
     const { fetch, calls } = stubFetch({});
-    assert.deepEqual(await createHardcoverClient({ apiKey: "k", fetch }).searchBooks("   "), []);
+    const client = createHardcoverClient({ apiKey: "k", fetch });
+    assert.deepEqual(await client.searchBooksAndSeries("   ", limits), { books: [], series: [] });
     assert.equal(calls.length, 0);
   });
 
-  it("throws HardcoverError on GraphQL errors and HTTP failures", async () => {
+  it("throws HardcoverError on search errors, GraphQL errors and HTTP failures", async () => {
+    const searchErr = stubFetch({ data: { books: { results: null }, series: { error: "index down" } } });
+    await assert.rejects(
+      createHardcoverClient({ apiKey: "k", fetch: searchErr.fetch }).searchBooksAndSeries("dune", limits),
+      (err) => err instanceof HardcoverError && err.message === "index down",
+    );
     const gqlErr = stubFetch({ errors: [{ message: "bad token" }] });
     await assert.rejects(
-      createHardcoverClient({ apiKey: "k", fetch: gqlErr.fetch }).searchBooks("dune"),
+      createHardcoverClient({ apiKey: "k", fetch: gqlErr.fetch }).searchBooksAndSeries("dune", limits),
       (err) => err instanceof HardcoverError && err.message === "bad token",
     );
     const httpErr = stubFetch({}, { status: 500, statusText: "Server Error" });
     await assert.rejects(
-      createHardcoverClient({ apiKey: "k", fetch: httpErr.fetch }).searchBooks("dune"),
+      createHardcoverClient({ apiKey: "k", fetch: httpErr.fetch }).searchBooksAndSeries("dune", limits),
       HardcoverError,
     );
   });
 });
 
-describe("searchSeries", () => {
-  function sequenceFetch(responses: unknown[]) {
-    const bodies: any[] = [];
-    const fetch = (async (_url: string, req: RequestInit) => {
-      bodies.push(JSON.parse(String(req.body)));
-      return new Response(JSON.stringify(responses[bodies.length - 1]), { status: 200 });
-    }) as typeof globalThis.fetch;
-    return { fetch, bodies };
-  }
-
-  it("searches series, then fetches their books in search order", async () => {
+describe("getSeries", () => {
+  it("returns series in the order of the given IDs", async () => {
     const row = (id: number, name: string) => ({ id, name, slug: name, books_count: 1, book_series: [] });
-    const { fetch, bodies } = sequenceFetch([
-      { data: { search: { error: null, ids: [2, 1], results: { hits: [{ document: { id: "2" } }, { document: { id: "1" } }] } } } },
-      { data: { series: [row(1, "b"), row(2, "a")] } },
-    ]);
-    const series = await createHardcoverClient({ apiKey: "k", fetch }).searchSeries(" expanse ", { limit: 2 });
-    assert.deepEqual(series.map((s) => s.name), ["a", "b"]);
-    assert.deepEqual(bodies[0]?.variables, { query: "expanse", perPage: 2 });
-    assert.match(bodies[0]?.query, /query_type: "Series"/);
-    assert.deepEqual(bodies[1]?.variables.ids, [2, 1]);
+    const { fetch, calls } = stubFetch({ data: { series: [row(1, "b"), row(2, "a")] } });
+    const series = await createHardcoverClient({ apiKey: "k", fetch }).getSeries([2, 1]);
+    assert.deepEqual(
+      series.map((s) => s.name),
+      ["a", "b"],
+    );
+    assert.deepEqual(calls[0]?.body.variables.ids, [2, 1]);
   });
 
-  it("skips the details request when nothing matches", async () => {
-    const { fetch, bodies } = sequenceFetch([{ data: { search: { ids: [], results: { hits: [] } } } }]);
-    assert.deepEqual(await createHardcoverClient({ apiKey: "k", fetch }).searchSeries("zzz"), []);
-    assert.equal(bodies.length, 1);
-  });
-
-  it("searches books and series in one request", async () => {
-    const { fetch, bodies } = sequenceFetch([
-      {
-        data: {
-          books: { error: null, results: { hits: [hit] } },
-          series: { error: null, ids: [4], results: { hits: [{ document: { id: 4, name: "Dune" } }] } },
-        },
-      },
-    ]);
-    const result = await createHardcoverClient({ apiKey: "k", fetch }).searchBooksAndSeries(" dune ", {
-      bookLimit: 10,
-      seriesLimit: 5,
-    });
-    assert.deepEqual(result.books.map((b) => b.title), ["Dune"]);
-    assert.deepEqual(result.series, [{ id: 4, name: "Dune" }]);
-    assert.equal(bodies.length, 1);
-    assert.deepEqual(bodies[0]?.variables, { query: "dune", bookLimit: 10, seriesLimit: 5 });
-  });
-
-  it("skips getSeries requests with no IDs", async () => {
-    const { fetch, bodies } = sequenceFetch([]);
+  it("skips the request when there are no IDs", async () => {
+    const { fetch, calls } = stubFetch({});
     assert.deepEqual(await createHardcoverClient({ apiKey: "k", fetch }).getSeries([]), []);
-    assert.equal(bodies.length, 0);
+    assert.equal(calls.length, 0);
   });
 });

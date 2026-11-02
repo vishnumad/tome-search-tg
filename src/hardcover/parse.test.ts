@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
-import { parseSearchResults, parseSeriesDetails, parseSeriesHits } from "./parse.ts";
+import { parseSearchResults, parseSeriesDetails, parseSeriesSearchResults } from "./parse.ts";
 
 const fixture: unknown = JSON.parse(
   readFileSync(new URL("./fixtures/search-results.json", import.meta.url), "utf8"),
@@ -79,25 +79,20 @@ describe("parseSearchResults", () => {
   });
 });
 
-describe("parseSeriesHits", () => {
-  it("reads hits in order, deduped", () => {
+describe("parseSeriesSearchResults", () => {
+  it("keeps order and skips malformed documents", () => {
     const results = {
-      hits: [
-        { document: { id: "3", name: " The Expanse " } },
-        { document: { id: 1, name: null } },
-        { document: { id: 3, name: "dupe" } },
-        { document: {} },
-      ],
+      hits: [{ document: { id: "3", name: " The Expanse " } }, { document: { id: 1 } }, { document: { id: 5, name: "Dune" } }],
     };
-    assert.deepEqual(parseSeriesHits(results, [9]), [
+    assert.deepEqual(parseSeriesSearchResults(results), [
       { id: 3, name: "The Expanse" },
-      { id: 1, name: undefined },
+      { id: 5, name: "Dune" },
     ]);
   });
 
-  it("falls back to the ids list", () => {
-    assert.deepEqual(parseSeriesHits(null, [5, null, 6]), [{ id: 5 }, { id: 6 }]);
-    assert.deepEqual(parseSeriesHits({ hits: [] }, null), []);
+  it("returns [] for empty or null results", () => {
+    assert.deepEqual(parseSeriesSearchResults(null), []);
+    assert.deepEqual(parseSeriesSearchResults({ hits: [] }), []);
   });
 });
 

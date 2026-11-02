@@ -1,16 +1,15 @@
 // Search Hardcover from the command line, without any Telegram involvement.
-//   pnpm search "mistborn" [--series] [--limit N] [--json | --html]
+//   pnpm search "mistborn" [--limit N] [--json | --html]
 import { parseArgs } from "node:util";
 import { loadHardcoverApiKey } from "./config.ts";
 import { bookSummaryLine, formatBookHtml, formatSeriesHtml, seriesSummaryLine } from "./format.ts";
 import { createHardcoverClient } from "./hardcover/client.ts";
-import { searchBooksAndSeries, type SearchResult } from "./search.ts";
+import { search, type SearchResult } from "./search.ts";
 
 const { values, positionals } = parseArgs({
   allowPositionals: true,
   options: {
     limit: { type: "string", short: "n", default: "5" },
-    series: { type: "boolean", short: "s", default: false },
     json: { type: "boolean", default: false },
     html: { type: "boolean", default: false },
     help: { type: "boolean", short: "h", default: false },
@@ -19,7 +18,7 @@ const { values, positionals } = parseArgs({
 
 const query = positionals.join(" ").trim();
 if (values.help || !query) {
-  console.log('Usage: pnpm search "<search term>" [--series] [--limit N] [--json | --html]');
+  console.log('Usage: pnpm search "<search term>" [--limit N] [--json | --html]');
   process.exit(values.help ? 0 : 1);
 }
 
@@ -30,14 +29,9 @@ if (!Number.isInteger(limit) || limit < 1) {
 }
 
 const client = createHardcoverClient({ apiKey: loadHardcoverApiKey() });
-interface Hit {
-  title: string;
-  summary: string;
-  url: string;
-  html: string;
-}
+const results = await search(client, query, { limit });
 
-const toHit = (result: SearchResult): Hit =>
+const toMatch = (result: SearchResult) =>
   result.kind === "book"
     ? {
         title: result.book.title,
@@ -51,23 +45,18 @@ const toHit = (result: SearchResult): Hit =>
         url: result.series.url,
         html: formatSeriesHtml(result.series),
       };
-
-// Same as the bot: books plus series whose name matches, or only series with --series.
-const raw: SearchResult[] = values.series
-  ? (await client.searchSeries(query, { limit })).map((series) => ({ kind: "series", series }))
-  : await searchBooksAndSeries(client, query, { limit });
-const hits = raw.map(toHit);
+const matches = results.map(toMatch);
 
 if (values.json) {
-  console.log(JSON.stringify(raw, null, 2));
-} else if (hits.length === 0) {
-  console.log(`No ${values.series ? "series" : "books or series"} found for "${query}".`);
+  console.log(JSON.stringify(results, null, 2));
+} else if (matches.length === 0) {
+  console.log(`No books or series found for "${query}".`);
 } else if (values.html) {
-  console.log(hits.map((hit) => hit.html).join("\n\n---\n\n"));
+  console.log(matches.map((match) => match.html).join("\n\n---\n\n"));
 } else {
-  hits.forEach((hit, i) => {
-    console.log(`${i + 1}. ${hit.title}`);
-    console.log(`   ${hit.summary}`);
-    console.log(`   ${hit.url}`);
+  matches.forEach((match, i) => {
+    console.log(`${i + 1}. ${match.title}`);
+    console.log(`   ${match.summary}`);
+    console.log(`   ${match.url}`);
   });
 }

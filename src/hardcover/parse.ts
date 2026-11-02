@@ -1,8 +1,7 @@
 import { z } from "zod";
-import type { Book, Series, SeriesBook, SeriesDetails, SeriesHit } from "./types.ts";
+import type { Book, Series, SeriesBook, SeriesDetails, SeriesMatch } from "./types.ts";
 
 const BOOK_URL_BASE = "https://hardcover.app/books/";
-
 const SERIES_URL_BASE = "https://hardcover.app/series/";
 
 export const bookUrl = (slug: string) => `${BOOK_URL_BASE}${encodeURIComponent(slug)}`;
@@ -123,39 +122,33 @@ function toBook(doc: Document): Book {
   };
 }
 
-/** Parses the `jsonb` payload of `search(...).results`. Malformed hits are skipped. */
+/** Parses the `jsonb` payload of `search(...).results`. Malformed documents are skipped. */
 export function parseSearchResults(results: unknown): Book[] {
   if (results == null) return [];
   const { hits } = resultsSchema.parse(results);
   const books: Book[] = [];
-  for (const hit of hits) {
-    const parsed = documentSchema.safeParse(hit.document);
+  for (const { document } of hits) {
+    const parsed = documentSchema.safeParse(document);
     if (parsed.success) books.push(toBook(parsed.data));
   }
   return books;
 }
 
-const idSchema = z.union([z.string(), z.number()]).transform(Number).pipe(z.number().int());
+const seriesMatchSchema = z.object({
+  id: z.union([z.string(), z.number()]).transform(Number),
+  name: z.string(),
+});
 
-const seriesHitSchema = z.object({ id: idSchema, name: z.string().nullish().catch(null) });
-
-/**
- * Series hits from a `query_type: "Series"` search, in relevance order. Reads the hits and falls
- * back to the top-level `ids` list (without names).
- */
-export function parseSeriesHits(results: unknown, ids?: readonly (number | null)[] | null): SeriesHit[] {
-  const found = new Map<number, SeriesHit>();
-  if (results != null) {
-    for (const hit of resultsSchema.parse(results).hits) {
-      const parsed = seriesHitSchema.safeParse(hit.document);
-      if (!parsed.success || found.has(parsed.data.id)) continue;
-      found.set(parsed.data.id, { id: parsed.data.id, name: nonEmpty(parsed.data.name) });
-    }
+/** Parses the `jsonb` payload of a series `search(...).results`. Malformed documents are skipped. */
+export function parseSeriesSearchResults(results: unknown): SeriesMatch[] {
+  if (results == null) return [];
+  const { hits } = resultsSchema.parse(results);
+  const matches: SeriesMatch[] = [];
+  for (const { document } of hits) {
+    const parsed = seriesMatchSchema.safeParse(document);
+    if (parsed.success) matches.push({ id: parsed.data.id, name: parsed.data.name.trim() });
   }
-  if (found.size === 0) {
-    for (const id of ids ?? []) if (id != null && !found.has(id)) found.set(id, { id });
-  }
-  return [...found.values()];
+  return matches;
 }
 
 // Hasura returns `numeric` and `float8` as JSON numbers, but they're untyped scalars in gql.tada.
@@ -208,10 +201,7 @@ function toSeriesBooks(rows: z.infer<typeof seriesRowSchema>["book_series"]): Se
   return books;
 }
 
-/**
- * Maps rows of the `series` table to `SeriesDetails`, ordered like `ids`. Malformed rows are
- * skipped. Each series keeps at most `bookLimit` books.
- */
+/** Maps rows of the `series` table to `SeriesDetails`, ordered like `ids`. Malformed rows are skipped. */
 export function parseSeriesDetails(
   rows: readonly unknown[],
   ids: readonly number[],
@@ -221,17 +211,17 @@ export function parseSeriesDetails(
   for (const row of rows) {
     const parsed = seriesRowSchema.safeParse(row);
     if (!parsed.success) continue;
-    const s = parsed.data;
-    const books = toSeriesBooks(s.book_series);
-    byId.set(s.id, {
-      id: s.id,
-      name: s.name.trim(),
-      url: seriesUrl(s.slug),
-      author: nonEmpty(s.author?.name),
-      description: nonEmpty(s.description && htmlToText(s.description)),
-      primaryBooksCount: s.primary_books_count || undefined,
-      booksCount: s.books_count,
-      isCompleted: s.is_completed ?? undefined,
+    const series = parsed.data;
+    const books = toSeriesBooks(series.book_series);
+    byId.set(series.id, {
+      id: series.id,
+      name: series.name.trim(),
+      url: seriesUrl(series.slug),
+      author: nonEmpty(series.author?.name),
+      description: nonEmpty(series.description && htmlToText(series.description)),
+      primaryBooksCount: series.primary_books_count || undefined,
+      booksCount: series.books_count,
+      isCompleted: series.is_completed ?? undefined,
       books: books.slice(0, bookLimit),
       hasMoreBooks: books.length > bookLimit,
     });

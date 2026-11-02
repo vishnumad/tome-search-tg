@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { HardcoverClient } from "./hardcover/client.ts";
-import type { Book, SeriesDetails, SeriesHit } from "./hardcover/types.ts";
-import { mixResults, normalizeTitle, searchBooksAndSeries, seriesNameMatches } from "./search.ts";
+import type { Book, SeriesDetails, SeriesMatch } from "./hardcover/types.ts";
+import { mixResults, normalizeTitle, search, seriesNameMatches } from "./search.ts";
 
 const book = (id: number, title: string): Book => ({
   id,
@@ -70,40 +70,26 @@ describe("mixResults", () => {
   });
 });
 
-describe("searchBooksAndSeries", () => {
-  function fakeClient(hits: SeriesHit[], { failDetails = false } = {}) {
-    const fetched: number[][] = [];
-    const client = {
-      async searchBooksAndSeries() {
-        return { books: [book(1, "Leviathan Wakes")], series: hits };
-      },
-      async getSeries(ids: readonly number[]) {
-        fetched.push([...ids]);
-        if (failDetails) throw new Error("boom");
-        return ids.map((id) => series(id, hits.find((h) => h.id === id)?.name ?? "?"));
-      },
-    } as unknown as HardcoverClient;
-    return { client, fetched };
-  }
-
+describe("search", () => {
   it("fetches only series whose name matches, at most two", async () => {
-    const { client, fetched } = fakeClient([
+    const seriesMatches: SeriesMatch[] = [
       { id: 1, name: "The Expanse" },
       { id: 2, name: "Something Else" },
-      { id: 3 },
-      { id: 4, name: "Expanse: Origins" },
-      { id: 5, name: "The Expanse RPG" },
-    ]);
-    const results = await searchBooksAndSeries(client, "the expanse", { limit: 10 });
-    assert.deepEqual(fetched, [[1, 4]]);
+      { id: 3, name: "Expanse: Origins" },
+      { id: 4, name: "The Expanse RPG" },
+    ];
+    const fetchedIds: number[][] = [];
+    const client: HardcoverClient = {
+      async searchBooksAndSeries() {
+        return { books: [book(1, "Leviathan Wakes")], series: seriesMatches };
+      },
+      async getSeries(ids) {
+        fetchedIds.push([...ids]);
+        return ids.map((id) => series(id, seriesMatches.find((match) => match.id === id)!.name));
+      },
+    };
+    const results = await search(client, "the expanse", { limit: 10 });
+    assert.deepEqual(fetchedIds, [[1, 3]]);
     assert.deepEqual(labels(results), ["series:The Expanse", "series:Expanse: Origins", "book:Leviathan Wakes"]);
-  });
-
-  it("still returns books when fetching series fails", async (t) => {
-    t.mock.method(console, "error", () => {});
-    const { client } = fakeClient([{ id: 1, name: "The Expanse" }], { failDetails: true });
-    assert.deepEqual(labels(await searchBooksAndSeries(client, "the expanse", { limit: 10 })), [
-      "book:Leviathan Wakes",
-    ]);
   });
 });
